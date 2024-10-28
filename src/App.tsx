@@ -19,6 +19,7 @@ import LoginForm from './components/LoginForm';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import { useRecipes, useWeeklyMenus } from './hooks/useSupabase';
+import { AuthRedirect } from './components/AuthRedirect';
 
 const HomePage: React.FC = () => {
   const { user, isAdmin } = useAuth();
@@ -78,6 +79,7 @@ const App: React.FC = () => {
 
   return (
     <Router>
+      <AuthRedirect />
       <div className="min-h-screen bg-gradient-to-br from-green-100 to-blue-100">
         <Header />
         <Routes>

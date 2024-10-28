@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, AuthError } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, clearSupabaseCache } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -39,48 +39,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
-        if (session?.user) {
+        if (session?.user && mounted) {
           setUser(session.user);
           const adminStatus = await checkAdminStatus(session.user.id);
           setIsAdmin(adminStatus);
-        } else {
+        } else if (mounted) {
           setUser(null);
           setIsAdmin(false);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
-        setUser(null);
-        setIsAdmin(false);
+        if (mounted) {
+          setUser(null);
+          setIsAdmin(false);
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     initializeAuth();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
+      if (!mounted) return;
+
+      if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
         const adminStatus = await checkAdminStatus(session.user.id);
         setIsAdmin(adminStatus);
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setIsAdmin(false);
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        setUser(session.user);
       }
       setLoading(false);
     });
 
-
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
+      await clearSupabaseCache();
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -118,12 +130,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      setLoading(true);
+      await clearSupabaseCache();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
       setUser(null);
       setIsAdmin(false);
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 

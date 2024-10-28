@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 const Header: React.FC = () => {
   const { user, signOut, isAdmin } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   if (location.pathname === '/login') {
     return null;
@@ -14,6 +15,7 @@ const Header: React.FC = () => {
   const handleSignOut = async () => {
     try {
       await signOut();
+      navigate('/login', { replace: true });
     } catch (error) {
       console.error('Error signing out:', error);
     }
