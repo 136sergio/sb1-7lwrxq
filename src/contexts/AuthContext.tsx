@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, AuthError } from '@supabase/supabase-js';
-import { supabase, clearSupabaseCache } from '../lib/supabase';
+import { supabase, clearSupabaseCache, refreshSession } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let refreshInterval: NodeJS.Timeout;
 
     const initializeAuth = async () => {
       try {
@@ -49,6 +50,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(session.user);
           const adminStatus = await checkAdminStatus(session.user.id);
           setIsAdmin(adminStatus);
+
+          // Configurar intervalo de actualización de sesión
+          refreshInterval = setInterval(async () => {
+            const refreshedSession = await refreshSession();
+            if (refreshedSession?.user && mounted) {
+              setUser(refreshedSession.user);
+            }
+          }, 4 * 60 * 1000); // Refrescar cada 4 minutos
         } else if (mounted) {
           setUser(null);
           setIsAdmin(false);
@@ -87,6 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
     };
   }, []);
 

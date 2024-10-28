@@ -11,10 +11,36 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    multiTab: true,
+    storageKey: 'sb-session',
+    storage: {
+      getItem: (key) => {
+        const item = localStorage.getItem(key);
+        if (!item) return null;
+        try {
+          const parsed = JSON.parse(item);
+          // Verificar si la sesión ha expirado
+          if (parsed.expires_at && new Date(parsed.expires_at) < new Date()) {
+            localStorage.removeItem(key);
+            return null;
+          }
+          return parsed;
+        } catch {
+          return null;
+        }
+      },
+      setItem: (key, value) => localStorage.setItem(key, JSON.stringify(value)),
+      removeItem: (key) => localStorage.removeItem(key)
+    }
   },
   db: {
     schema: 'public'
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'supabase-js-web'
+    }
   }
 });
 
@@ -23,8 +49,11 @@ export const handleSupabaseError = (error: any) => {
   console.error('Supabase error:', error);
   
   if (error?.message?.includes('JWT expired')) {
-    supabase.auth.signOut(); // Force sign out on expired token
-    return new Error('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
+    // Instead of forcing sign out, try to refresh the token
+    supabase.auth.refreshSession().catch(() => {
+      supabase.auth.signOut(); // Only sign out if refresh fails
+    });
+    return new Error('Reconectando...');
   }
   if (error?.message?.includes('No API key found')) {
     return new Error('Error de autenticación. Por favor, inicia sesión nuevamente.');
@@ -55,21 +84,46 @@ export const checkDatabaseConnection = async () => {
   }
 };
 
-// Function to clear supabase cache
+// Function to clear supabase cache for current device only
 export const clearSupabaseCache = async () => {
   try {
-    await supabase.auth.refreshSession();
-    localStorage.removeItem('supabase.auth.token');
+    const currentSession = await supabase.auth.getSession();
+    if (currentSession.data.session) {
+      await supabase.auth.refreshSession();
+    }
+    
+    // Solo limpiar el almacenamiento local del dispositivo actual
+    const keysToKeep = ['sb-session'];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && !keysToKeep.includes(key)) {
+        localStorage.removeItem(key);
+      }
+    }
+    
+    // Limpiar sessionStorage
     sessionStorage.clear();
     
-    // Clear all data from IndexedDB
+    // Limpiar IndexedDB solo si es necesario
     const databases = await window.indexedDB.databases();
-    databases.forEach(db => {
-      if (db.name) {
+    for (const db of databases) {
+      if (db.name && !db.name.includes('session')) {
         window.indexedDB.deleteDatabase(db.name);
       }
-    });
+    }
   } catch (error) {
     console.error('Error clearing cache:', error);
+  }
+};
+
+// Function to handle session refresh
+export const refreshSession = async () => {
+  try {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) throw error;
+    return data.session;
+  } catch (error) {
+    console.error('Error refreshing session:', error);
+    return null;
   }
 };
