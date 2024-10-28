@@ -14,20 +14,13 @@ interface MealPlanItem {
 
 function getMealTypes(count: number): string[] {
   switch (count) {
-    case 1:
-      return ['Comida'];
-    case 2:
-      return ['Comida', 'Cena'];
-    case 3:
-      return ['Desayuno', 'Comida', 'Cena'];
-    case 4:
-      return ['Desayuno', 'Comida', 'Merienda', 'Cena'];
-    case 5:
-      return ['Desayuno', 'Almuerzo', 'Comida', 'Merienda', 'Cena'];
-    case 6:
-      return ['Desayuno', 'Media Mañana', 'Almuerzo', 'Comida', 'Merienda', 'Cena'];
-    default:
-      return ['Desayuno', 'Comida', 'Merienda', 'Cena'];
+    case 1: return ['Comida'];
+    case 2: return ['Comida', 'Cena'];
+    case 3: return ['Desayuno', 'Comida', 'Cena'];
+    case 4: return ['Desayuno', 'Comida', 'Merienda', 'Cena'];
+    case 5: return ['Desayuno', 'Almuerzo', 'Comida', 'Merienda', 'Cena'];
+    case 6: return ['Desayuno', 'Media Mañana', 'Almuerzo', 'Comida', 'Merienda', 'Cena'];
+    default: return ['Desayuno', 'Comida', 'Merienda', 'Cena'];
   }
 }
 
@@ -44,22 +37,38 @@ const AddWeeklyMenuPage: React.FC = () => {
   const [currentDayIndex, setCurrentDayIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [defaultMenuName, setDefaultMenuName] = useState('');
+  const [customMenuName, setCustomMenuName] = useState('');
+  const [isCustomName, setIsCustomName] = useState(false);
 
   const weekDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
   useEffect(() => {
-    updateMenuName(selectedDate);
+    updateDefaultMenuName(selectedDate);
   }, [selectedDate]);
 
-  const updateMenuName = (date: Date) => {
+  const updateDefaultMenuName = (date: Date) => {
     const weekStart = new Date(date);
     weekStart.setDate(date.getDate() - date.getDay() + 1);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
 
     const formatDate = (d: Date) => d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+    const year = weekEnd.getFullYear();
     
-    setMenuName(`Menú Semana del ${formatDate(weekStart)} al ${formatDate(weekEnd)}`);
+    const newDefaultName = `Menú Semana del ${formatDate(weekStart)} al ${formatDate(weekEnd)} de ${year}`;
+    setDefaultMenuName(newDefaultName);
+    if (!isCustomName) {
+      setMenuName(newDefaultName);
+    }
+  };
+
+  const handleMenuNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    setMenuName(newName);
+    setCustomMenuName(newName);
+    setIsCustomName(newName !== defaultMenuName);
+    setHasChanges(true);
   };
 
   const getWeekNumber = (date: Date) => {
@@ -183,10 +192,7 @@ const AddWeeklyMenuPage: React.FC = () => {
               type="text"
               id="menuName"
               value={menuName}
-              onChange={(e) => {
-                setMenuName(e.target.value);
-                setHasChanges(true);
-              }}
+              onChange={handleMenuNameChange}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
               required
             />
