@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, AuthError } from '@supabase/supabase-js';
-import { supabase, clearSupabaseCache, refreshSession } from '../lib/supabase';
+import { User, AuthError, Session } from '@supabase/supabase-js';
+import { supabase, clearSupabaseCache } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -18,49 +18,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const checkAdminStatus = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('admin_users')
-        .select('id')
-        .eq('id', userId)
-        .maybeSingle();
+  const checkAdminStatus = async (userId: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setTimeout(async () => {
+        try {
+          console.log('Checking admin status for user:', userId);
+          const { data, error } = await supabase
+            .from('admin_users')
+            .select('id')
+            .eq('id', userId)
+            .single();
 
-      if (error) {
-        console.error('Error checking admin status:', error);
-        return false;
-      }
+          if (error) {
+            console.error('Error checking admin status:', error);
+            resolve(false);
+            return;
+          }
 
-      return !!data;
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      return false;
+          console.log('Admin status result:', !!data);
+          resolve(!!data);
+        } catch (error) {
+          console.error('Error checking admin status:', error);
+          resolve(false);
+        }
+      }, 100);
+    });
+  };
+
+  const handleSession = async (session: Session | null) => {
+    console.log('Handling session:', session?.user?.email);
+    if (session?.user) {
+      setUser(session.user);
+      const adminStatus = await checkAdminStatus(session.user.id);
+      setIsAdmin(adminStatus);
+    } else {
+      setUser(null);
+      setIsAdmin(false);
     }
   };
 
   useEffect(() => {
     let mounted = true;
-    let refreshInterval: NodeJS.Timeout;
 
     const initializeAuth = async () => {
       try {
+        console.log('Initializing auth...');
         const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user && mounted) {
-          setUser(session.user);
-          const adminStatus = await checkAdminStatus(session.user.id);
-          setIsAdmin(adminStatus);
-
-          // Configurar intervalo de actualización de sesión
-          refreshInterval = setInterval(async () => {
-            const refreshedSession = await refreshSession();
-            if (refreshedSession?.user && mounted) {
-              setUser(refreshedSession.user);
-            }
-          }, 4 * 60 * 1000); // Refrescar cada 4 minutos
-        } else if (mounted) {
-          setUser(null);
-          setIsAdmin(false);
+        if (mounted) {
+          await handleSession(session);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -80,81 +85,104 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      if (event === 'SIGNED_IN' && session?.user) {
-        setUser(session.user);
-        const adminStatus = await checkAdminStatus(session.user.id);
-        setIsAdmin(adminStatus);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setIsAdmin(false);
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        setUser(session.user);
-      }
-      setLoading(false);
+      console.log('Auth state change:', event);
+      setTimeout(async () => {
+        switch (event) {
+          case 'SIGNED_IN':
+            await handleSession(session);
+            break;
+          case 'SIGNED_OUT':
+            setUser(null);
+            setIsAdmin(false);
+            break;
+          case 'TOKEN_REFRESHED':
+            if (session?.user) {
+              const adminStatus = await checkAdminStatus(session.user.id);
+              setIsAdmin(adminStatus);
+            }
+            break;
+        }
+        setLoading(false);
+      }, 100);
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
     };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    try {
-      await clearSupabaseCache();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    return new Promise<{ error: AuthError | null }>(async (resolve) => {
+      setTimeout(async () => {
+        try {
+          console.log('Starting sign in process for:', email);
+          await clearSupabaseCache();
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
 
-      if (error) throw error;
+          if (error) {
+            console.error('Sign in error:', error);
+            throw error;
+          }
 
-      if (data.user) {
-        const adminStatus = await checkAdminStatus(data.user.id);
-        setIsAdmin(adminStatus);
-      }
+          console.log('Sign in successful:', data.user?.email);
+          if (data.user) {
+            const adminStatus = await checkAdminStatus(data.user.id);
+            setIsAdmin(adminStatus);
+          }
 
-      return { error: null };
-    } catch (error) {
-      console.error('Sign in error:', error);
-      return { error: error as AuthError };
-    }
+          resolve({ error: null });
+        } catch (error) {
+          console.error('Sign in error:', error);
+          resolve({ error: error as AuthError });
+        }
+      }, 100);
+    });
   };
 
   const signUp = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`,
-        },
-      });
-      return { error };
-    } catch (error) {
-      console.error('Sign up error:', error);
-      return { error: error as AuthError };
-    }
+    return new Promise<{ error: AuthError | null }>(async (resolve) => {
+      setTimeout(async () => {
+        try {
+          const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: `${window.location.origin}/login`,
+            },
+          });
+          resolve({ error });
+        } catch (error) {
+          console.error('Sign up error:', error);
+          resolve({ error: error as AuthError });
+        }
+      }, 100);
+    });
   };
 
   const signOut = async () => {
-    try {
-      setLoading(true);
-      await clearSupabaseCache();
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      setUser(null);
-      setIsAdmin(false);
-    } catch (error) {
-      console.error('Error signing out:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+    return new Promise<void>(async (resolve, reject) => {
+      setTimeout(async () => {
+        try {
+          setLoading(true);
+          await clearSupabaseCache();
+          const { error } = await supabase.auth.signOut();
+          if (error) throw error;
+          
+          setUser(null);
+          setIsAdmin(false);
+          resolve();
+        } catch (error) {
+          console.error('Error signing out:', error);
+          reject(error);
+        } finally {
+          setLoading(false);
+        }
+      }, 100);
+    });
   };
 
   const value = {

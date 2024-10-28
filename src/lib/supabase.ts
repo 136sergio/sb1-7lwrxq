@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { Database } from '../types/supabase';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -7,20 +8,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    multiTab: true,
-    storageKey: 'sb-session',
     storage: {
-      getItem: (key) => {
+      getItem: (key: string) => {
         const item = localStorage.getItem(key);
         if (!item) return null;
         try {
           const parsed = JSON.parse(item);
-          // Verificar si la sesión ha expirado
           if (parsed.expires_at && new Date(parsed.expires_at) < new Date()) {
             localStorage.removeItem(key);
             return null;
@@ -30,8 +28,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
           return null;
         }
       },
-      setItem: (key, value) => localStorage.setItem(key, JSON.stringify(value)),
-      removeItem: (key) => localStorage.removeItem(key)
+      setItem: (key: string, value: any) => localStorage.setItem(key, JSON.stringify(value)),
+      removeItem: (key: string) => localStorage.removeItem(key)
     }
   },
   db: {
@@ -44,15 +42,18 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-// Add error handling for common Supabase operations
 export const handleSupabaseError = (error: any) => {
   console.error('Supabase error:', error);
   
   if (error?.message?.includes('JWT expired')) {
-    // Instead of forcing sign out, try to refresh the token
-    supabase.auth.refreshSession().catch(() => {
-      supabase.auth.signOut(); // Only sign out if refresh fails
-    });
+    setTimeout(async () => {
+      try {
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) throw refreshError;
+      } catch {
+        await supabase.auth.signOut();
+      }
+    }, 100);
     return new Error('Reconectando...');
   }
   if (error?.message?.includes('No API key found')) {
@@ -67,63 +68,73 @@ export const handleSupabaseError = (error: any) => {
   return error;
 };
 
-// Function to check if the database is accessible
 export const checkDatabaseConnection = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('recipes')
-      .select('count')
-      .limit(1)
-      .single();
+  return new Promise<boolean>((resolve) => {
+    setTimeout(async () => {
+      try {
+        const { error } = await supabase
+          .from('recipes')
+          .select('id')
+          .limit(1)
+          .single();
 
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Database connection error:', error);
-    return false;
-  }
+        if (error) throw error;
+        resolve(true);
+      } catch (error) {
+        console.error('Database connection error:', error);
+        resolve(false);
+      }
+    }, 100);
+  });
 };
 
-// Function to clear supabase cache for current device only
 export const clearSupabaseCache = async () => {
-  try {
-    const currentSession = await supabase.auth.getSession();
-    if (currentSession.data.session) {
-      await supabase.auth.refreshSession();
-    }
-    
-    // Solo limpiar el almacenamiento local del dispositivo actual
-    const keysToKeep = ['sb-session'];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && !keysToKeep.includes(key)) {
-        localStorage.removeItem(key);
+  return new Promise<void>((resolve) => {
+    setTimeout(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { error } = await supabase.auth.refreshSession();
+          if (error) throw error;
+        }
+        
+        const keysToKeep = ['sb-session'];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && !keysToKeep.includes(key)) {
+            localStorage.removeItem(key);
+          }
+        }
+        
+        sessionStorage.clear();
+        
+        const databases = await window.indexedDB.databases();
+        databases.forEach(db => {
+          if (db.name && !db.name.includes('session')) {
+            window.indexedDB.deleteDatabase(db.name);
+          }
+        });
+        
+        resolve();
+      } catch (error) {
+        console.error('Error clearing cache:', error);
+        resolve();
       }
-    }
-    
-    // Limpiar sessionStorage
-    sessionStorage.clear();
-    
-    // Limpiar IndexedDB solo si es necesario
-    const databases = await window.indexedDB.databases();
-    for (const db of databases) {
-      if (db.name && !db.name.includes('session')) {
-        window.indexedDB.deleteDatabase(db.name);
-      }
-    }
-  } catch (error) {
-    console.error('Error clearing cache:', error);
-  }
+    }, 100);
+  });
 };
 
-// Function to handle session refresh
 export const refreshSession = async () => {
-  try {
-    const { data, error } = await supabase.auth.refreshSession();
-    if (error) throw error;
-    return data.session;
-  } catch (error) {
-    console.error('Error refreshing session:', error);
-    return null;
-  }
+  return new Promise((resolve) => {
+    setTimeout(async () => {
+      try {
+        const { data, error } = await supabase.auth.refreshSession();
+        if (error) throw error;
+        resolve(data.session);
+      } catch (error) {
+        console.error('Error refreshing session:', error);
+        resolve(null);
+      }
+    }, 100);
+  });
 };

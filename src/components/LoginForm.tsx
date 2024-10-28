@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthError } from '@supabase/supabase-js';
 import { AlertCircle, Utensils } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const LoginForm = () => {
   const [email, setEmail] = useState('');
@@ -9,6 +10,7 @@ const LoginForm = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { signIn } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,26 +18,34 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
+      console.log('Attempting login for:', email);
       const { error: signInError } = await signIn(email, password);
-      if (signInError) throw signInError;
-    } catch (err) {
-      const authError = err as AuthError;
-      switch (authError?.message) {
-        case 'Invalid login credentials':
-          setError('El email o la contraseña son incorrectos');
-          break;
-        case 'Email not confirmed':
-          setError('Por favor, confirma tu email antes de iniciar sesión');
-          break;
-        case 'Invalid email':
-          setError('El formato del email no es válido');
-          break;
-        case 'Password should be at least 6 characters':
-          setError('La contraseña debe tener al menos 6 caracteres');
-          break;
-        default:
-          setError('Error al iniciar sesión. Por favor, inténtalo de nuevo.');
+      
+      if (signInError) {
+        console.error('Sign in error:', signInError);
+        switch (signInError.message) {
+          case 'Invalid login credentials':
+            setError('El email o la contraseña son incorrectos');
+            break;
+          case 'Email not confirmed':
+            setError('Por favor, confirma tu email antes de iniciar sesión');
+            break;
+          case 'Invalid email':
+            setError('El formato del email no es válido');
+            break;
+          case 'Password should be at least 6 characters':
+            setError('La contraseña debe tener al menos 6 caracteres');
+            break;
+          default:
+            setError(signInError.message || 'Error al iniciar sesión. Por favor, inténtalo de nuevo.');
+        }
+      } else {
+        console.log('Login successful, navigating to home');
+        navigate('/', { replace: true });
       }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Error inesperado al iniciar sesión. Por favor, inténtalo de nuevo.');
     } finally {
       setIsLoading(false);
     }
