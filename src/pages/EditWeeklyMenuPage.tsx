@@ -12,6 +12,16 @@ interface MealPlanItem {
   quantity: number;
 }
 
+interface WeeklyMenu {
+  id: string;
+  name: string;
+  year: number;
+  week: number;
+  meal_count: number;
+  meal_types: string[];
+  meal_plan: MealPlanItem[][][];
+}
+
 function getMealTypes(count: number): string[] {
   switch (count) {
     case 1: return ['Comida'];
@@ -29,7 +39,6 @@ const EditWeeklyMenuPage: React.FC = () => {
   const navigate = useNavigate();
   const { recipes } = useRecipes();
   const [menuName, setMenuName] = useState('');
-  const [originalName, setOriginalName] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [mealCount, setMealCount] = useState(4);
   const [mealTypes, setMealTypes] = useState<string[]>(['Desayuno', 'Comida', 'Merienda', 'Cena']);
@@ -40,6 +49,8 @@ const EditWeeklyMenuPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
+  const [defaultMenuName, setDefaultMenuName] = useState('');
+  const [isCustomName, setIsCustomName] = useState(false);
 
   const weekDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
@@ -52,17 +63,13 @@ const EditWeeklyMenuPage: React.FC = () => {
         const menu = await menuService.getById(id);
         if (menu) {
           setMenuName(menu.name);
-          setOriginalName(menu.name);
-          
-          const menuDate = new Date();
-          menuDate.setFullYear(menu.year);
-          menuDate.setDate(1);
-          menuDate.setDate(menu.week * 7 - 6);
-          setSelectedDate(menuDate);
-          
+          const date = new Date();
+          setSelectedDate(date);
           setMealCount(menu.meal_count);
           setMealTypes(menu.meal_types);
           setMealPlan(menu.meal_plan);
+          generateDefaultMenuName(date);
+          setIsCustomName(menu.name !== generateDefaultMenuName(date));
         }
       } catch (error) {
         console.error('Error loading menu:', error);
@@ -74,25 +81,31 @@ const EditWeeklyMenuPage: React.FC = () => {
     loadMenu();
   }, [id]);
 
-  const generateWeekName = (date: Date) => {
+  const generateDefaultMenuName = (date: Date) => {
     const weekStart = new Date(date);
     weekStart.setDate(date.getDate() - date.getDay() + 1);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
+
     const formatDate = (d: Date) => d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
     const year = weekEnd.getFullYear();
-    return `Menú Semana del ${formatDate(weekStart)} al ${formatDate(weekEnd)} de ${year}`;
+    
+    const newDefaultName = `Menú Semana del ${formatDate(weekStart)} al ${formatDate(weekEnd)} de ${year}`;
+    setDefaultMenuName(newDefaultName);
+    return newDefaultName;
   };
 
   const handleDateChange = (date: Date) => {
     setSelectedDate(date);
-    setMenuName(generateWeekName(date));
+    const newDefaultName = generateDefaultMenuName(date);
+    setMenuName(newDefaultName);
     setHasChanges(true);
   };
 
   const handleMenuNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
     setMenuName(newName);
+    setIsCustomName(true);
     setHasChanges(true);
   };
 
@@ -101,23 +114,6 @@ const EditWeeklyMenuPage: React.FC = () => {
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
     return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  };
-
-  const handleSelectRecipe = (recipe: { name: string }) => {
-    const newMealPlan = [...mealPlan];
-    if (newMealPlan[currentDayIndex][currentMealIndex].length < 4 && !newMealPlan[currentDayIndex][currentMealIndex].some(item => item.recipeName === recipe.name)) {
-      newMealPlan[currentDayIndex][currentMealIndex] = [...newMealPlan[currentDayIndex][currentMealIndex], { recipeName: recipe.name, quantity: 1 }];
-      setMealPlan(newMealPlan);
-      setHasChanges(true);
-    }
-    setIsModalOpen(false);
-  };
-
-  const handleRemoveRecipe = (dayIndex: number, mealIndex: number, recipeIndex: number) => {
-    const newMealPlan = [...mealPlan];
-    newMealPlan[dayIndex][mealIndex] = newMealPlan[dayIndex][mealIndex].filter((_, index) => index !== recipeIndex);
-    setMealPlan(newMealPlan);
-    setHasChanges(true);
   };
 
   const generateRandomMenu = () => {
@@ -180,6 +176,23 @@ const EditWeeklyMenuPage: React.FC = () => {
       }
     }
 
+    setMealPlan(newMealPlan);
+    setHasChanges(true);
+  };
+
+  const handleSelectRecipe = (recipe: { name: string }) => {
+    const newMealPlan = [...mealPlan];
+    if (newMealPlan[currentDayIndex][currentMealIndex].length < 4 && !newMealPlan[currentDayIndex][currentMealIndex].some(item => item.recipeName === recipe.name)) {
+      newMealPlan[currentDayIndex][currentMealIndex] = [...newMealPlan[currentDayIndex][currentMealIndex], { recipeName: recipe.name, quantity: 1 }];
+      setMealPlan(newMealPlan);
+      setHasChanges(true);
+    }
+    setIsModalOpen(false);
+  };
+
+  const handleRemoveRecipe = (dayIndex: number, mealIndex: number, recipeIndex: number) => {
+    const newMealPlan = [...mealPlan];
+    newMealPlan[dayIndex][mealIndex] = newMealPlan[dayIndex][mealIndex].filter((_, index) => index !== recipeIndex);
     setMealPlan(newMealPlan);
     setHasChanges(true);
   };
