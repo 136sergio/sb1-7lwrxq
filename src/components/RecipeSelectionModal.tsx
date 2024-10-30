@@ -38,7 +38,7 @@ const RecipeSelectionModal: React.FC<RecipeSelectionModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-[60]">
       <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium text-gray-900">Seleccionar Receta</h3>
@@ -46,6 +46,7 @@ const RecipeSelectionModal: React.FC<RecipeSelectionModalProps> = ({
             <X size={24} />
           </button>
         </div>
+
         <div className="mb-4">
           <div className="relative">
             <input
@@ -58,20 +59,32 @@ const RecipeSelectionModal: React.FC<RecipeSelectionModalProps> = ({
             <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
           </div>
         </div>
+
         <div className="mt-2 max-h-96 overflow-y-auto">
           {filteredRecipes.length > 0 ? (
-            <ul className="divide-y divide-gray-200">
+            <div className="divide-y divide-gray-200">
               {filteredRecipes.map((recipe) => (
-                <li key={recipe.id} className="py-4">
-                  <button
-                    onClick={() => onSelectRecipe(recipe)}
-                    className="w-full text-left hover:bg-gray-50 p-2 rounded"
-                  >
-                    {recipe.name}
-                  </button>
-                </li>
+                <button
+                  key={recipe.id}
+                  onClick={() => {
+                    onSelectRecipe(recipe);
+                    onClose();
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  <h4 className="font-medium text-gray-900">{recipe.name}</h4>
+                  {recipe.meal_types.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {recipe.meal_types.map(type => (
+                        <span key={type} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                          {type}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </button>
               ))}
-            </ul>
+            </div>
           ) : (
             <p className="text-gray-500 text-center py-4">No hay recetas disponibles para esta selección.</p>
           )}

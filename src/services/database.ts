@@ -1,4 +1,5 @@
 import { supabase, handleSupabaseError } from '../lib/supabase';
+import { WeeklyMenu, MealPlanItem } from '../types/menu';
 
 export interface Recipe {
   id: string;

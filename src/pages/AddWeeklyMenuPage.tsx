@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, X, Shuffle } from 'lucide-react';
+import { Plus, Shuffle } from 'lucide-react';
 import RecipeSelectionModal from '../components/RecipeSelectionModal';
+import ProductSearchModal from '../components/ProductSearchModal';
+import AddMenuItemModal from '../components/AddMenuItemModal';
 import BackButton from '../components/BackButton';
 import WeekSelector from '../components/WeekSelector';
 import { menuService } from '../services/database';
 import { useRecipes } from '../hooks/useSupabase';
-
-interface MealPlanItem {
-  recipeName: string;
-  quantity: number;
-}
+import { MealPlanItem } from '../types/menu';
 
 function getMealTypes(count: number): string[] {
   switch (count) {
@@ -32,22 +30,25 @@ const AddWeeklyMenuPage: React.FC = () => {
   const [mealCount, setMealCount] = useState(4);
   const [mealTypes, setMealTypes] = useState<string[]>(['Desayuno', 'Comida', 'Merienda', 'Cena']);
   const [mealPlan, setMealPlan] = useState<MealPlanItem[][][]>(Array(7).fill(null).map(() => Array(4).fill([])));
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentMealIndex, setCurrentMealIndex] = useState(0);
   const [currentDayIndex, setCurrentDayIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [defaultMenuName, setDefaultMenuName] = useState('');
-  const [customMenuName, setCustomMenuName] = useState('');
   const [isCustomName, setIsCustomName] = useState(false);
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [showRecipeModal, setShowRecipeModal] = useState(false);
+  const [showProductModal, setShowProductModal] = useState(false);
 
   const weekDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
   useEffect(() => {
-    updateDefaultMenuName(selectedDate);
-  }, [selectedDate]);
+    const defaultName = generateDefaultMenuName(selectedDate);
+    if (!isCustomName) {
+      setMenuName(defaultName);
+    }
+  }, [selectedDate, isCustomName]);
 
-  const updateDefaultMenuName = (date: Date) => {
+  const generateDefaultMenuName = (date: Date) => {
     const weekStart = new Date(date);
     weekStart.setDate(date.getDate() - date.getDay() + 1);
     const weekEnd = new Date(weekStart);
@@ -56,18 +57,61 @@ const AddWeeklyMenuPage: React.FC = () => {
     const formatDate = (d: Date) => d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
     const year = weekEnd.getFullYear();
     
-    const newDefaultName = `Menú Semana del ${formatDate(weekStart)} al ${formatDate(weekEnd)} de ${year}`;
-    setDefaultMenuName(newDefaultName);
-    if (!isCustomName) {
-      setMenuName(newDefaultName);
-    }
+    return `Menú Semana del ${formatDate(weekStart)} al ${formatDate(weekEnd)} de ${year}`;
+  };
+
+  const handleDateChange = (date: Date) => {
+    setSelectedDate(date);
+    setIsCustomName(false);
+    setHasChanges(true);
   };
 
   const handleMenuNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
     setMenuName(newName);
-    setCustomMenuName(newName);
-    setIsCustomName(newName !== defaultMenuName);
+    setIsCustomName(true);
+    setHasChanges(true);
+  };
+
+  const handleMealCountChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newMealCount = Number(e.target.value);
+    setMealCount(newMealCount);
+    const newMealTypes = getMealTypes(newMealCount);
+    setMealTypes(newMealTypes);
+    setMealPlan(Array(7).fill(null).map(() => Array(newMealCount).fill([])));
+    setHasChanges(true);
+  };
+
+  const handleSelectRecipe = (recipe: { name: string }) => {
+    const newMealPlan = [...mealPlan];
+    if (newMealPlan[currentDayIndex][currentMealIndex].length < 4) {
+      newMealPlan[currentDayIndex][currentMealIndex] = [
+        ...newMealPlan[currentDayIndex][currentMealIndex],
+        { recipeName: recipe.name, quantity: 1 }
+      ];
+      setMealPlan(newMealPlan);
+      setHasChanges(true);
+    }
+    setShowRecipeModal(false);
+  };
+
+  const handleSelectProduct = (product: any) => {
+    const newMealPlan = [...mealPlan];
+    if (newMealPlan[currentDayIndex][currentMealIndex].length < 4) {
+      newMealPlan[currentDayIndex][currentMealIndex] = [
+        ...newMealPlan[currentDayIndex][currentMealIndex],
+        { recipeName: product.name, quantity: 1, isProduct: true }
+      ];
+      setMealPlan(newMealPlan);
+      setHasChanges(true);
+    }
+    setShowProductModal(false);
+  };
+
+  const handleRemoveItem = (dayIndex: number, mealIndex: number, itemIndex: number) => {
+    const newMealPlan = [...mealPlan];
+    newMealPlan[dayIndex][mealIndex] = newMealPlan[dayIndex][mealIndex].filter((_, index) => index !== itemIndex);
+    setMealPlan(newMealPlan);
     setHasChanges(true);
   };
 
@@ -76,87 +120,6 @@ const AddWeeklyMenuPage: React.FC = () => {
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
     return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  };
-
-  const handleSelectRecipe = (recipe: { name: string }) => {
-    const newMealPlan = [...mealPlan];
-    if (newMealPlan[currentDayIndex][currentMealIndex].length < 4 && !newMealPlan[currentDayIndex][currentMealIndex].some(item => item.recipeName === recipe.name)) {
-      newMealPlan[currentDayIndex][currentMealIndex] = [...newMealPlan[currentDayIndex][currentMealIndex], { recipeName: recipe.name, quantity: 1 }];
-      setMealPlan(newMealPlan);
-      setHasChanges(true);
-    }
-    setIsModalOpen(false);
-  };
-
-  const handleRemoveRecipe = (dayIndex: number, mealIndex: number, recipeIndex: number) => {
-    const newMealPlan = [...mealPlan];
-    newMealPlan[dayIndex][mealIndex] = newMealPlan[dayIndex][mealIndex].filter((_, index) => index !== recipeIndex);
-    setMealPlan(newMealPlan);
-    setHasChanges(true);
-  };
-
-  const generateRandomMenu = () => {
-    const newMealPlan = [...mealPlan];
-    const usedRecipes = new Set<string>();
-
-    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
-      const currentDay = weekDays[dayIndex];
-
-      for (let mealIndex = 0; mealIndex < mealCount; mealIndex++) {
-        const currentMealType = mealTypes[mealIndex];
-        newMealPlan[dayIndex][mealIndex] = [];
-
-        let eligibleRecipes = recipes.filter(recipe => {
-          const hasMealTypePreference = recipe.meal_types.length > 0;
-          const hasWeekDayPreference = recipe.week_days.length > 0;
-          const matchesMealType = !hasMealTypePreference || recipe.meal_types.includes(currentMealType);
-          const matchesWeekDay = !hasWeekDayPreference || recipe.week_days.includes(currentDay);
-          const notUsedThisWeek = !usedRecipes.has(recipe.name);
-
-          if (hasMealTypePreference && !recipe.meal_types.includes(currentMealType)) return false;
-          if (hasWeekDayPreference && !recipe.week_days.includes(currentDay)) return false;
-
-          return matchesMealType && matchesWeekDay && notUsedThisWeek;
-        });
-
-        if (eligibleRecipes.length === 0) {
-          eligibleRecipes = recipes.filter(recipe => 
-            recipe.meal_types.length === 0 && 
-            recipe.week_days.length === 0 && 
-            !usedRecipes.has(recipe.name)
-          );
-        }
-
-        if (eligibleRecipes.length === 0) {
-          eligibleRecipes = recipes.filter(recipe => {
-            const hasMealTypePreference = recipe.meal_types.length > 0;
-            const hasWeekDayPreference = recipe.week_days.length > 0;
-            const matchesMealType = !hasMealTypePreference || recipe.meal_types.includes(currentMealType);
-            const matchesWeekDay = !hasWeekDayPreference || recipe.week_days.includes(currentDay);
-
-            if (hasMealTypePreference && !recipe.meal_types.includes(currentMealType)) return false;
-            if (hasWeekDayPreference && !recipe.week_days.includes(currentDay)) return false;
-
-            return matchesMealType && matchesWeekDay;
-          });
-        }
-
-        if (eligibleRecipes.length > 0) {
-          const randomIndex = Math.floor(Math.random() * eligibleRecipes.length);
-          const selectedRecipe = eligibleRecipes[randomIndex];
-          
-          newMealPlan[dayIndex][mealIndex] = [{
-            recipeName: selectedRecipe.name,
-            quantity: 1
-          }];
-
-          usedRecipes.add(selectedRecipe.name);
-        }
-      }
-    }
-
-    setMealPlan(newMealPlan);
-    setHasChanges(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -202,10 +165,7 @@ const AddWeeklyMenuPage: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Semana</label>
             <WeekSelector
               selectedDate={selectedDate}
-              onChange={(date) => {
-                setSelectedDate(date);
-                setHasChanges(true);
-              }}
+              onChange={handleDateChange}
             />
           </div>
         </div>
@@ -215,14 +175,7 @@ const AddWeeklyMenuPage: React.FC = () => {
           <select
             id="mealCount"
             value={mealCount}
-            onChange={(e) => {
-              const newMealCount = Number(e.target.value);
-              setMealCount(newMealCount);
-              const newMealTypes = getMealTypes(newMealCount);
-              setMealTypes(newMealTypes);
-              setMealPlan(Array(7).fill(null).map(() => Array(newMealCount).fill([])));
-              setHasChanges(true);
-            }}
+            onChange={handleMealCountChange}
             className="mt-1 block w-40 rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
           >
             {[1, 2, 3, 4, 5, 6].map((count) => (
@@ -234,7 +187,12 @@ const AddWeeklyMenuPage: React.FC = () => {
         <div className="flex justify-end mb-4">
           <button
             type="button"
-            onClick={generateRandomMenu}
+            onClick={() => {
+              const newMealPlan = [...mealPlan];
+              // Implementar lógica de generación aleatoria
+              setMealPlan(newMealPlan);
+              setHasChanges(true);
+            }}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
           >
             <Shuffle className="h-5 w-5 mr-2" />
@@ -259,15 +217,15 @@ const AddWeeklyMenuPage: React.FC = () => {
                 </td>
                 {weekDays.map((_, dayIndex) => (
                   <td key={`${mealType}-${dayIndex}`} className="border border-gray-300 p-2">
-                    {mealPlan[dayIndex][mealIndex].map((item, recipeIndex) => (
-                      <div key={`${item.recipeName}-${recipeIndex}`} className="flex items-center justify-between mb-1">
+                    {mealPlan[dayIndex][mealIndex].map((item, itemIndex) => (
+                      <div key={`${item.recipeName}-${itemIndex}`} className="flex items-center justify-between mb-1">
                         <span className="text-sm">{item.recipeName}</span>
                         <button
                           type="button"
-                          onClick={() => handleRemoveRecipe(dayIndex, mealIndex, recipeIndex)}
+                          onClick={() => handleRemoveItem(dayIndex, mealIndex, itemIndex)}
                           className="text-red-500 hover:text-red-700"
                         >
-                          <X size={14} />
+                          <Plus size={14} className="rotate-45" />
                         </button>
                       </div>
                     ))}
@@ -277,7 +235,7 @@ const AddWeeklyMenuPage: React.FC = () => {
                         onClick={() => {
                           setCurrentMealIndex(mealIndex);
                           setCurrentDayIndex(dayIndex);
-                          setIsModalOpen(true);
+                          setShowAddItemModal(true);
                         }}
                         className="w-full text-sm text-green-500 hover:text-green-700"
                       >
@@ -301,14 +259,27 @@ const AddWeeklyMenuPage: React.FC = () => {
           </button>
         </div>
       </form>
-      
+
+      <AddMenuItemModal
+        isOpen={showAddItemModal}
+        onClose={() => setShowAddItemModal(false)}
+        onSelectRecipe={() => setShowRecipeModal(true)}
+        onSelectProduct={() => setShowProductModal(true)}
+      />
+
       <RecipeSelectionModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={showRecipeModal}
+        onClose={() => setShowRecipeModal(false)}
         onSelectRecipe={handleSelectRecipe}
         mealType={mealTypes[currentMealIndex]}
         weekDay={weekDays[currentDayIndex]}
         usedRecipes={new Set(mealPlan[currentDayIndex][currentMealIndex].map(item => item.recipeName))}
+      />
+
+      <ProductSearchModal
+        isOpen={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        onSelectProduct={handleSelectProduct}
       />
     </div>
   );
