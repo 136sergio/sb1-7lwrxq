@@ -5,7 +5,6 @@ export interface Recipe {
   name: string;
   meal_types: string[];
   week_days: string[];
-  ingredients: string;
   instructions: string;
   user_id: string;
 }
@@ -19,6 +18,13 @@ export interface WeeklyMenu {
   meal_types: string[];
   meal_plan: any[][][];
   user_id: string;
+}
+
+export interface RecipeIngredient {
+  recipe_id: string;
+  ingredient_id: string;
+  quantity: number;
+  unit: string;
 }
 
 export const recipeService = {
@@ -40,30 +46,80 @@ export const recipeService = {
     }
   },
 
-  async create(recipe: Omit<Recipe, 'id' | 'user_id'>) {
+  async getById(id: string) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
-      const { data, error } = await supabase
+      // Obtener la receta
+      const { data: recipe, error: recipeError } = await supabase
         .from('recipes')
-        .insert([{ ...recipe, user_id: user.id }])
-        .select()
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
         .single();
       
-      if (error) throw error;
-      return data;
+      if (recipeError) throw recipeError;
+
+      // Obtener los ingredientes de la receta
+      const { data: ingredients, error: ingredientsError } = await supabase
+        .from('recipe_ingredients')
+        .select(`
+          ingredient_id,
+          quantity,
+          unit,
+          ingredients:ingredient_id (
+            name,
+            base_unit
+          )
+        `)
+        .eq('recipe_id', id);
+
+      if (ingredientsError) throw ingredientsError;
+
+      return {
+        ...recipe,
+        ingredients: ingredients?.map(item => ({
+          ingredientId: item.ingredient_id,
+          name: item.ingredients.name,
+          quantity: item.quantity,
+          unit: item.unit || item.ingredients.base_unit
+        })) || []
+      };
     } catch (error) {
       throw handleSupabaseError(error);
     }
   },
 
-  async update(id: string, recipe: Partial<Recipe>) {
+  async create(recipe: Omit<Recipe, 'id' | 'user_id'>, ingredients: RecipeIngredient[]) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
-      const { data, error } = await supabase
+      const { data: recipeData, error: recipeError } = await supabase
+        .from('recipes')
+        .insert([{ ...recipe, user_id: user.id }])
+        .select()
+        .single();
+      
+      if (recipeError) throw recipeError;
+
+      if (ingredients.length > 0) {
+        await this.addIngredients(recipeData.id, ingredients);
+      }
+
+      return recipeData;
+    } catch (error) {
+      throw handleSupabaseError(error);
+    }
+  },
+
+  async update(id: string, recipe: Partial<Recipe>, ingredients?: RecipeIngredient[]) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+
+      const { data, error: updateError } = await supabase
         .from('recipes')
         .update(recipe)
         .eq('id', id)
@@ -71,7 +127,23 @@ export const recipeService = {
         .select()
         .single();
       
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      if (ingredients) {
+        // Primero eliminar los ingredientes existentes
+        const { error: deleteError } = await supabase
+          .from('recipe_ingredients')
+          .delete()
+          .eq('recipe_id', id);
+        
+        if (deleteError) throw deleteError;
+
+        // Luego añadir los nuevos ingredientes
+        if (ingredients.length > 0) {
+          await this.addIngredients(id, ingredients);
+        }
+      }
+
       return data;
     } catch (error) {
       throw handleSupabaseError(error);
@@ -83,6 +155,15 @@ export const recipeService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
+      // Primero eliminar los ingredientes relacionados
+      const { error: deleteIngredientsError } = await supabase
+        .from('recipe_ingredients')
+        .delete()
+        .eq('recipe_id', id);
+      
+      if (deleteIngredientsError) throw deleteIngredientsError;
+
+      // Luego eliminar la receta
       const { error } = await supabase
         .from('recipes')
         .delete()
@@ -95,20 +176,18 @@ export const recipeService = {
     }
   },
 
-  async getById(id: string) {
+  async addIngredients(recipeId: string, ingredients: RecipeIngredient[]) {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No authenticated user');
-
-      const { data, error } = await supabase
-        .from('recipes')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .single();
+      const { error } = await supabase
+        .from('recipe_ingredients')
+        .insert(ingredients.map(ingredient => ({
+          recipe_id: recipeId,
+          ingredient_id: ingredient.ingredient_id,
+          quantity: ingredient.quantity,
+          unit: ingredient.unit
+        })));
       
       if (error) throw error;
-      return data;
     } catch (error) {
       throw handleSupabaseError(error);
     }
@@ -150,7 +229,6 @@ export const menuService = {
 
       let uniqueName = menu.name;
       if (existingMenus && existingMenus.length > 0) {
-        // Find the highest counter for menus with the same base name
         const baseNamePattern = new RegExp(`^${menu.name}(?: \\((\\d+)\\))?$`);
         let maxCounter = 0;
 
@@ -162,7 +240,6 @@ export const menuService = {
           }
         });
 
-        // If there's at least one menu with this name, add counter
         if (maxCounter >= 0) {
           uniqueName = `${menu.name} (${maxCounter + 1})`;
         }
@@ -192,14 +269,13 @@ export const menuService = {
           .from('weekly_menus')
           .select('name')
           .eq('user_id', user.id)
-          .neq('id', id) // Exclude current menu
+          .neq('id', id)
           .ilike('name', `${menu.name}%`);
 
         if (searchError) throw searchError;
 
         let uniqueName = menu.name;
         if (existingMenus && existingMenus.length > 0) {
-          // Find the highest counter for menus with the same base name
           const baseNamePattern = new RegExp(`^${menu.name}(?: \\((\\d+)\\))?$`);
           let maxCounter = 0;
 
@@ -211,7 +287,6 @@ export const menuService = {
             }
           });
 
-          // If there's at least one menu with this name, add counter
           if (maxCounter >= 0) {
             uniqueName = `${menu.name} (${maxCounter + 1})`;
           }
