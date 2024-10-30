@@ -34,11 +34,22 @@ export function useIngredients(searchTerm: string) {
         // Normalizar el término de búsqueda
         const normalizedSearch = removeAccents(searchTerm.toLowerCase());
 
-        // Realizar la búsqueda usando la columna search_name
+        // Realizar la búsqueda usando ILIKE para coincidencia parcial
         const { data, error: searchError } = await supabase
           .from('ingredients')
-          .select('*')
-          .or(`name.ilike.%${searchTerm}%,search_name.ilike.%${normalizedSearch}%`)
+          .select(`
+            id,
+            name,
+            base_unit,
+            category,
+            calories,
+            proteins,
+            carbohydrates,
+            fats,
+            fiber,
+            sodium
+          `)
+          .ilike('name', `%${searchTerm}%`)
           .limit(10);
 
         if (searchError) throw searchError;

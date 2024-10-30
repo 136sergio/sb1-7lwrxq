@@ -1,12 +1,21 @@
 import React, { useState } from 'react';
 import { Plus, Edit2, X } from 'lucide-react';
 import IngredientForm from './IngredientForm';
+import NutritionInfo from './NutritionInfo';
 
 interface Ingredient {
   ingredientId: string;
   name: string;
   quantity: number;
   unit: string;
+  nutrition?: {
+    calories: number;
+    proteins: number;
+    carbohydrates: number;
+    fats: number;
+    fiber: number;
+    sodium: number;
+  };
 }
 
 interface IngredientListProps {
@@ -19,7 +28,8 @@ const IngredientList: React.FC<IngredientListProps> = ({ ingredients, onChange }
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const handleAdd = (ingredient: Ingredient) => {
-    onChange([...ingredients, ingredient]);
+    const newIngredients = [...ingredients, ingredient];
+    onChange(newIngredients);
     setShowForm(false);
   };
 
@@ -31,52 +41,58 @@ const IngredientList: React.FC<IngredientListProps> = ({ ingredients, onChange }
   };
 
   const handleRemove = (index: number) => {
-    onChange(ingredients.filter((_, i) => i !== index));
+    const newIngredients = ingredients.filter((_, i) => i !== index);
+    onChange(newIngredients);
     if (editingIndex === index) {
       setEditingIndex(null);
     }
   };
 
   return (
-    <div>
-      {ingredients.map((ingredient, index) => (
-        <div key={`${ingredient.ingredientId}-${index}`}>
-          {editingIndex === index ? (
-            <IngredientForm
-              initialIngredient={ingredient}
-              onEdit={(_, updatedIngredient) => handleEdit(index, updatedIngredient)}
-              onRemove={() => handleRemove(index)}
-              isEditing
-              index={index}
-            />
-          ) : (
-            <div className="flex items-center justify-between mb-2 bg-white p-2 rounded-md shadow-sm">
-              <span className="flex-grow">
-                {ingredient.quantity} {ingredient.unit} {ingredient.name}
-              </span>
-              <div className="flex space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingIndex(index)}
-                  className="p-1 text-blue-600 hover:bg-blue-100 rounded-full"
-                >
-                  <Edit2 size={14} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRemove(index)}
-                  className="p-1 text-red-600 hover:bg-red-100 rounded-full"
-                >
-                  <X size={14} />
-                </button>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        {ingredients.map((ingredient, index) => (
+          <div key={`${ingredient.ingredientId}-${index}`}>
+            {editingIndex === index ? (
+              <IngredientForm
+                initialIngredient={ingredient}
+                onEdit={(_, updatedIngredient) => handleEdit(index, updatedIngredient)}
+                onRemove={() => handleRemove(index)}
+                isEditing
+                index={index}
+              />
+            ) : (
+              <div className="flex items-center justify-between bg-white p-2 rounded-md shadow-sm">
+                <span className="flex-grow">
+                  {ingredient.quantity} {ingredient.unit} {ingredient.name}
+                </span>
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingIndex(index)}
+                    className="p-1 text-blue-600 hover:bg-blue-100 rounded-full"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(index)}
+                    className="p-1 text-red-600 hover:bg-red-100 rounded-full"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      ))}
+            )}
+          </div>
+        ))}
+      </div>
 
       {showForm ? (
-        <IngredientForm onAdd={handleAdd} />
+        <IngredientForm 
+          onAdd={handleAdd}
+          onCancel={() => setShowForm(false)}
+        />
       ) : (
         <button
           type="button"
@@ -87,6 +103,8 @@ const IngredientList: React.FC<IngredientListProps> = ({ ingredients, onChange }
           Añadir Ingrediente
         </button>
       )}
+
+      {ingredients.length > 0 && <NutritionInfo ingredients={ingredients} />}
     </div>
   );
 };

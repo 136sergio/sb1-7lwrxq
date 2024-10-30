@@ -9,22 +9,28 @@ export interface Recipe {
   user_id: string;
 }
 
-export interface WeeklyMenu {
-  id: string;
-  name: string;
-  year: number;
-  week: number;
-  meal_count: number;
-  meal_types: string[];
-  meal_plan: any[][][];
-  user_id: string;
-}
-
 export interface RecipeIngredient {
   recipe_id: string;
   ingredient_id: string;
   quantity: number;
   unit: string;
+}
+
+export interface RecipeWithIngredients extends Recipe {
+  ingredients: {
+    ingredientId: string;
+    name: string;
+    quantity: number;
+    unit: string;
+    nutrition?: {
+      calories: number;
+      proteins: number;
+      carbohydrates: number;
+      fats: number;
+      fiber: number;
+      sodium: number;
+    };
+  }[];
 }
 
 export const recipeService = {
@@ -46,7 +52,7 @@ export const recipeService = {
     }
   },
 
-  async getById(id: string) {
+  async getById(id: string): Promise<RecipeWithIngredients | null> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
@@ -61,7 +67,7 @@ export const recipeService = {
       
       if (recipeError) throw recipeError;
 
-      // Obtener los ingredientes de la receta
+      // Obtener los ingredientes de la receta con sus datos nutricionales
       const { data: ingredients, error: ingredientsError } = await supabase
         .from('recipe_ingredients')
         .select(`
@@ -70,7 +76,13 @@ export const recipeService = {
           unit,
           ingredients:ingredient_id (
             name,
-            base_unit
+            base_unit,
+            calories,
+            proteins,
+            carbohydrates,
+            fats,
+            fiber,
+            sodium
           )
         `)
         .eq('recipe_id', id);
@@ -83,7 +95,15 @@ export const recipeService = {
           ingredientId: item.ingredient_id,
           name: item.ingredients.name,
           quantity: item.quantity,
-          unit: item.unit || item.ingredients.base_unit
+          unit: item.unit || item.ingredients.base_unit,
+          nutrition: {
+            calories: item.ingredients.calories || 0,
+            proteins: item.ingredients.proteins || 0,
+            carbohydrates: item.ingredients.carbohydrates || 0,
+            fats: item.ingredients.fats || 0,
+            fiber: item.ingredients.fiber || 0,
+            sodium: item.ingredients.sodium || 0
+          }
         })) || []
       };
     } catch (error) {

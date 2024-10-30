@@ -1,12 +1,52 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, X, Check, Edit2 } from 'lucide-react';
-import { useIngredients, Ingredient } from '../hooks/useIngredients';
+import { useIngredients, Ingredient as IngredientType } from '../hooks/useIngredients';
 
 interface IngredientFormProps {
-  onAdd: (ingredient: { ingredientId: string; name: string; quantity: number; unit: string }) => void;
-  onEdit?: (index: number, ingredient: { ingredientId: string; name: string; quantity: number; unit: string }) => void;
+  onAdd: (ingredient: { 
+    ingredientId: string; 
+    name: string; 
+    quantity: number; 
+    unit: string;
+    nutrition?: {
+      calories: number;
+      proteins: number;
+      carbohydrates: number;
+      fats: number;
+      fiber: number;
+      sodium: number;
+    };
+  }) => void;
+  onEdit?: (index: number, ingredient: { 
+    ingredientId: string; 
+    name: string; 
+    quantity: number; 
+    unit: string;
+    nutrition?: {
+      calories: number;
+      proteins: number;
+      carbohydrates: number;
+      fats: number;
+      fiber: number;
+      sodium: number;
+    };
+  }) => void;
   onRemove?: (index: number) => void;
-  initialIngredient?: { ingredientId: string; name: string; quantity: number; unit: string };
+  onCancel?: () => void;
+  initialIngredient?: { 
+    ingredientId: string; 
+    name: string; 
+    quantity: number; 
+    unit: string;
+    nutrition?: {
+      calories: number;
+      proteins: number;
+      carbohydrates: number;
+      fats: number;
+      fiber: number;
+      sodium: number;
+    };
+  };
   isEditing?: boolean;
   index?: number;
 }
@@ -15,13 +55,14 @@ const IngredientForm: React.FC<IngredientFormProps> = ({
   onAdd,
   onEdit,
   onRemove,
+  onCancel,
   initialIngredient,
   isEditing,
   index
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [quantity, setQuantity] = useState<string>('');
-  const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
+  const [selectedIngredient, setSelectedIngredient] = useState<IngredientType | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const { ingredients, loading } = useIngredients(searchTerm);
   const suggestionRef = useRef<HTMLDivElement>(null);
@@ -30,6 +71,18 @@ const IngredientForm: React.FC<IngredientFormProps> = ({
     if (initialIngredient) {
       setSearchTerm(initialIngredient.name);
       setQuantity(initialIngredient.quantity.toString());
+      setSelectedIngredient({
+        id: initialIngredient.ingredientId,
+        name: initialIngredient.name,
+        base_unit: initialIngredient.unit,
+        category: '',
+        calories: initialIngredient.nutrition?.calories ?? 0,
+        proteins: initialIngredient.nutrition?.proteins ?? 0,
+        carbohydrates: initialIngredient.nutrition?.carbohydrates ?? 0,
+        fats: initialIngredient.nutrition?.fats ?? 0,
+        fiber: initialIngredient.nutrition?.fiber ?? 0,
+        sodium: initialIngredient.nutrition?.sodium ?? 0,
+      });
     }
   }, [initialIngredient]);
 
@@ -44,7 +97,7 @@ const IngredientForm: React.FC<IngredientFormProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleIngredientSelect = (ingredient: Ingredient) => {
+  const handleIngredientSelect = (ingredient: IngredientType) => {
     setSelectedIngredient(ingredient);
     setSearchTerm(ingredient.name);
     setShowSuggestions(false);
@@ -52,11 +105,22 @@ const IngredientForm: React.FC<IngredientFormProps> = ({
 
   const handleSubmit = () => {
     if (selectedIngredient && quantity) {
+      const parsedQuantity = parseFloat(quantity);
+      if (isNaN(parsedQuantity) || parsedQuantity <= 0) return;
+
       const ingredientData = {
         ingredientId: selectedIngredient.id,
         name: selectedIngredient.name,
-        quantity: parseFloat(quantity),
-        unit: selectedIngredient.base_unit
+        quantity: parsedQuantity,
+        unit: selectedIngredient.base_unit,
+        nutrition: {
+          calories: selectedIngredient.calories ?? 0,
+          proteins: selectedIngredient.proteins ?? 0,
+          carbohydrates: selectedIngredient.carbohydrates ?? 0,
+          fats: selectedIngredient.fats ?? 0,
+          fiber: selectedIngredient.fiber ?? 0,
+          sodium: selectedIngredient.sodium ?? 0
+        }
       };
 
       if (isEditing && typeof index === 'number' && onEdit) {
@@ -79,7 +143,9 @@ const IngredientForm: React.FC<IngredientFormProps> = ({
           onChange={(e) => {
             setSearchTerm(e.target.value);
             setShowSuggestions(true);
-            setSelectedIngredient(null);
+            if (!isEditing) {
+              setSelectedIngredient(null);
+            }
           }}
           placeholder="Buscar ingrediente..."
           className="w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
@@ -113,7 +179,7 @@ const IngredientForm: React.FC<IngredientFormProps> = ({
         value={quantity}
         onChange={(e) => setQuantity(e.target.value)}
         placeholder="Cantidad"
-        disabled={!selectedIngredient}
+        disabled={!selectedIngredient && !isEditing}
         className="w-24 rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 disabled:bg-gray-100"
         min="0.1"
         step="0.1"
@@ -121,7 +187,7 @@ const IngredientForm: React.FC<IngredientFormProps> = ({
 
       <input
         type="text"
-        value={selectedIngredient?.base_unit || ''}
+        value={selectedIngredient?.base_unit || initialIngredient?.unit || ''}
         placeholder="Medida"
         disabled
         className="w-24 rounded-md border-gray-300 shadow-sm bg-gray-100"
@@ -158,11 +224,7 @@ const IngredientForm: React.FC<IngredientFormProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => {
-              setSearchTerm('');
-              setQuantity('');
-              setSelectedIngredient(null);
-            }}
+            onClick={onCancel}
             className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200"
           >
             <X size={14} />
