@@ -90,11 +90,18 @@ const ViewWeeklyMenuPage: React.FC = () => {
                   </td>
                   {weekDays.map((_, dayIndex) => (
                     <td key={`${mealType}-${dayIndex}`} className="border border-gray-300 p-2">
-                      {menu.meal_plan[dayIndex][mealIndex].map((item, recipeIndex) => (
-                        <div key={`${item.recipeName}-${recipeIndex}`} className="text-sm text-gray-600 break-words">
-                          {item.recipeName}
-                        </div>
-                      ))}
+                      <div className="space-y-2">
+                        {menu.meal_plan[dayIndex][mealIndex].map((item, recipeIndex) => (
+                          <div key={`${item.recipeName}-${recipeIndex}`}>
+                            <div className="text-sm text-gray-600 break-words">
+                              {item.recipeName}
+                            </div>
+                            {recipeIndex < menu.meal_plan[dayIndex][mealIndex].length - 1 && (
+                              <hr className="my-1 border-gray-200" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </td>
                   ))}
                 </tr>

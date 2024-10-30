@@ -9,18 +9,7 @@ import WeekSelector from '../components/WeekSelector';
 import { menuService } from '../services/database';
 import { useRecipes } from '../hooks/useSupabase';
 import { MealPlanItem } from '../types/menu';
-
-function getMealTypes(count: number): string[] {
-  switch (count) {
-    case 1: return ['Comida'];
-    case 2: return ['Comida', 'Cena'];
-    case 3: return ['Desayuno', 'Comida', 'Cena'];
-    case 4: return ['Desayuno', 'Comida', 'Merienda', 'Cena'];
-    case 5: return ['Desayuno', 'Almuerzo', 'Comida', 'Merienda', 'Cena'];
-    case 6: return ['Desayuno', 'Media Mañana', 'Almuerzo', 'Comida', 'Merienda', 'Cena'];
-    default: return ['Desayuno', 'Comida', 'Merienda', 'Cena'];
-  }
-}
+import { getMealTypes, generateRandomMenu } from '../utils/menu';
 
 const EditWeeklyMenuPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -55,7 +44,6 @@ const EditWeeklyMenuPage: React.FC = () => {
           setMenuName(menu.name);
           setOriginalName(menu.name);
           
-          // Calcular la fecha basada en el año y semana
           const date = new Date();
           date.setFullYear(menu.year);
           date.setDate(1);
@@ -67,7 +55,6 @@ const EditWeeklyMenuPage: React.FC = () => {
           setMealTypes(menu.meal_types);
           setMealPlan(menu.meal_plan);
           
-          // Determinar si el nombre es personalizado
           const defaultName = generateDefaultMenuName(date);
           setIsCustomName(menu.name !== defaultName);
         }
@@ -95,7 +82,7 @@ const EditWeeklyMenuPage: React.FC = () => {
 
   const handleDateChange = (date: Date) => {
     setSelectedDate(date);
-    setIsCustomName(false); // Resetear el nombre personalizado cuando cambia la fecha
+    setIsCustomName(false);
     const newDefaultName = generateDefaultMenuName(date);
     setMenuName(newDefaultName);
     setHasChanges(true);
@@ -114,6 +101,12 @@ const EditWeeklyMenuPage: React.FC = () => {
     const newMealTypes = getMealTypes(newMealCount);
     setMealTypes(newMealTypes);
     setMealPlan(Array(7).fill(null).map(() => Array(newMealCount).fill([])));
+    setHasChanges(true);
+  };
+
+  const handleGenerateRandomMenu = () => {
+    const randomMenu = generateRandomMenu(recipes, mealTypes, weekDays);
+    setMealPlan(randomMenu);
     setHasChanges(true);
   };
 
@@ -231,12 +224,7 @@ const EditWeeklyMenuPage: React.FC = () => {
         <div className="flex justify-end mb-4">
           <button
             type="button"
-            onClick={() => {
-              const newMealPlan = [...mealPlan];
-              // Implementar lógica de generación aleatoria
-              setMealPlan(newMealPlan);
-              setHasChanges(true);
-            }}
+            onClick={handleGenerateRandomMenu}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
           >
             <Shuffle className="h-5 w-5 mr-2" />
@@ -261,18 +249,25 @@ const EditWeeklyMenuPage: React.FC = () => {
                 </td>
                 {weekDays.map((_, dayIndex) => (
                   <td key={`${mealType}-${dayIndex}`} className="border border-gray-300 p-2">
-                    {mealPlan[dayIndex][mealIndex].map((item, itemIndex) => (
-                      <div key={`${item.recipeName}-${itemIndex}`} className="flex items-center justify-between mb-1">
-                        <span className="text-sm">{item.recipeName}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(dayIndex, mealIndex, itemIndex)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
+                    <div className="space-y-2">
+                      {mealPlan[dayIndex][mealIndex].map((item, itemIndex) => (
+                        <div key={`${item.recipeName}-${itemIndex}`}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">{item.recipeName}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(dayIndex, mealIndex, itemIndex)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                          {itemIndex < mealPlan[dayIndex][mealIndex].length - 1 && (
+                            <hr className="my-1 border-gray-200" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
                     {mealPlan[dayIndex][mealIndex].length < 4 && (
                       <button
                         type="button"
@@ -281,7 +276,7 @@ const EditWeeklyMenuPage: React.FC = () => {
                           setCurrentDayIndex(dayIndex);
                           setShowAddItemModal(true);
                         }}
-                        className="w-full text-sm text-green-500 hover:text-green-700"
+                        className="w-full text-sm text-green-500 hover:text-green-700 mt-2"
                       >
                         <Plus size={14} className="mx-auto" />
                       </button>

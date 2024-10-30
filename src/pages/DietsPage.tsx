@@ -83,9 +83,10 @@ const MenuPage: React.FC = () => {
     const tableData = menu.meal_types.map((mealType, mealIndex) => {
       return [
         mealType,
-        ...weekDays.map((_day, dayIndex) => 
-          menu.meal_plan[dayIndex][mealIndex].map(item => item.recipeName).join('\n')
-        )
+        ...weekDays.map((_day, dayIndex) => {
+          const items = menu.meal_plan[dayIndex][mealIndex];
+          return items.map(item => item.recipeName).join('\n—————\n');
+        })
       ];
     });
 
@@ -99,7 +100,8 @@ const MenuPage: React.FC = () => {
         cellPadding: 2,
         halign: 'center',
         valign: 'middle',
-        lineWidth: 0.1
+        lineWidth: 0.1,
+        lineColor: [200, 200, 200]
       },
       headStyles: {
         fillColor: [76, 175, 80],
@@ -114,7 +116,12 @@ const MenuPage: React.FC = () => {
         }
       },
       margin: { left: 10, right: 10 },
-      tableWidth: 'auto'
+      tableWidth: 'auto',
+      didDrawCell: (data: any) => {
+        if (data.cell.text && data.cell.text.includes('—————')) {
+          data.cell.text = data.cell.text.split('\n—————\n');
+        }
+      }
     });
 
     doc.save(`${menu.name}.pdf`);
