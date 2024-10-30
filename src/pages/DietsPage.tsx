@@ -101,7 +101,8 @@ const MenuPage: React.FC = () => {
         halign: 'center',
         valign: 'middle',
         lineWidth: 0.1,
-        lineColor: [200, 200, 200]
+        lineColor: [200, 200, 200],
+        cellWidth: 'auto'
       },
       headStyles: {
         fillColor: [76, 175, 80],
@@ -116,10 +117,11 @@ const MenuPage: React.FC = () => {
         }
       },
       margin: { left: 10, right: 10 },
-      tableWidth: 'auto',
-      didDrawCell: (data: any) => {
-        if (data.cell.text && data.cell.text.includes('—————')) {
-          data.cell.text = data.cell.text.split('\n—————\n');
+      didParseCell: function(data: any) {
+        if (data.section === 'body' && data.column.index > 0) {
+          const text = data.cell.text.join('\n');
+          data.cell.text = text.split('\n');
+          data.cell.styles.cellPadding = 4;
         }
       }
     });
