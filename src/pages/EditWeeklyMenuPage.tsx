@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, X, Shuffle, Eye } from 'lucide-react';
+import { Shuffle, Eye } from 'lucide-react';
 import RecipeSelectionModal from '../components/RecipeSelectionModal';
 import ProductSearchModal from '../components/ProductSearchModal';
 import ProductQuantityModal from '../components/ProductQuantityModal';
 import AddMenuItemModal from '../components/AddMenuItemModal';
 import BackButton from '../components/BackButton';
 import WeekSelector from '../components/WeekSelector';
+import MenuTable from '../components/MenuTable';
 import MenuNutritionInfo from '../components/MenuNutritionInfo';
-import MenuItemNutrition from '../components/MenuItemNutrition';
 import { menuService, recipeService } from '../services/database';
 import { useRecipes } from '../hooks/useSupabase';
 import { MealPlanItem } from '../types/menu';
@@ -215,4 +215,138 @@ const EditWeeklyMenuPage: React.FC = () => {
             <input
               type="text"
               id="menuName"
-              va
+              value={menuName}
+              onChange={(e) => {
+                setMenuName(e.target.value);
+                setHasChanges(true);
+              }}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
+              required
+            />
+          </div>
+          
+          <div className="flex-shrink-0">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Semana</label>
+            <WeekSelector
+              selectedDate={selectedDate}
+              onChange={(date) => {
+                setSelectedDate(date);
+                setHasChanges(true);
+              }}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="mealCount" className="block text-sm font-medium text-gray-700">Cantidad de comidas</label>
+          <select
+            id="mealCount"
+            value={mealCount}
+            onChange={handleMealCountChange}
+            className="mt-1 block w-40 rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
+          >
+            {[1, 2, 3, 4, 5, 6].map((count) => (
+              <option key={count} value={count}>{count}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <button
+            type="button"
+            onClick={() => setShowNutritionInfo(!showNutritionInfo)}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <Eye className="h-5 w-5 mr-2" />
+            {showNutritionInfo ? 'Ocultar información nutricional' : 'Ver información nutricional'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleGenerateRandomMenu}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+          >
+            <Shuffle className="h-5 w-5 mr-2" />
+            Generar menú aleatorio
+          </button>
+        </div>
+
+        <MenuTable
+          mealPlan={mealPlan}
+          mealTypes={mealTypes}
+          weekDays={weekDays}
+          showNutritionInfo={showNutritionInfo}
+          currentDayIndex={currentDayIndex}
+          currentMealIndex={currentMealIndex}
+          onAddItem={(dayIndex, mealIndex) => {
+            setCurrentDayIndex(dayIndex);
+            setCurrentMealIndex(mealIndex);
+            setShowAddItemModal(true);
+          }}
+          onRemoveItem={handleRemoveItem}
+        />
+
+        {showNutritionInfo && (
+          <MenuNutritionInfo
+            mealPlan={mealPlan}
+            mealTypes={mealTypes}
+            weekDays={weekDays}
+          />
+        )}
+
+        <div>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? (
+              <div className="flex items-center">
+                <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                Guardando cambios...
+              </div>
+            ) : (
+              'Guardar Cambios'
+            )}
+          </button>
+        </div>
+      </form>
+
+      <AddMenuItemModal
+        isOpen={showAddItemModal}
+        onClose={() => setShowAddItemModal(false)}
+        onSelectRecipe={() => setShowRecipeModal(true)}
+        onSelectProduct={() => setShowProductModal(true)}
+      />
+
+      <RecipeSelectionModal
+        isOpen={showRecipeModal}
+        onClose={() => setShowRecipeModal(false)}
+        onSelectRecipe={handleSelectRecipe}
+        mealType={mealTypes[currentMealIndex]}
+        weekDay={weekDays[currentDayIndex]}
+        usedRecipes={new Set(mealPlan[currentDayIndex][currentMealIndex].map(item => item.recipeName))}
+      />
+
+      <ProductSearchModal
+        isOpen={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        onSelectProduct={handleSelectProduct}
+      />
+
+      {selectedProduct && (
+        <ProductQuantityModal
+          isOpen={showProductQuantityModal}
+          onClose={() => {
+            setShowProductQuantityModal(false);
+            setSelectedProduct(null);
+          }}
+          onConfirm={handleConfirmProductQuantity}
+          product={selectedProduct}
+        />
+      )}
+    </div>
+  );
+};
+
+export default EditWeeklyMenuPage;

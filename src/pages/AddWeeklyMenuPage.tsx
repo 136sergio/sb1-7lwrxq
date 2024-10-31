@@ -111,13 +111,20 @@ const AddWeeklyMenuPage: React.FC = () => {
       if (newMealPlan[currentDayIndex][currentMealIndex].length < 4) {
         const ratio = quantity / 100;
         const nutrition = selectedProduct.nutrition ? {
-          calories: selectedProduct.nutrition.calories * ratio,
+          calories: (selectedProduct.nutrition.calories || 0) * ratio,
           proteins: (selectedProduct.nutrition.proteins || 0) * ratio,
           carbohydrates: (selectedProduct.nutrition.carbohydrates || 0) * ratio,
           fats: (selectedProduct.nutrition.fats || 0) * ratio,
           fiber: (selectedProduct.nutrition.fiber || 0) * ratio,
           sodium: (selectedProduct.nutrition.sodium || 0) * ratio
-        } : undefined;
+        } : {
+          calories: 0,
+          proteins: 0,
+          carbohydrates: 0,
+          fats: 0,
+          fiber: 0,
+          sodium: 0
+        };
 
         newMealPlan[currentDayIndex][currentMealIndex] = [
           ...newMealPlan[currentDayIndex][currentMealIndex],
@@ -131,9 +138,9 @@ const AddWeeklyMenuPage: React.FC = () => {
         setMealPlan(newMealPlan);
         setHasChanges(true);
       }
-      setShowProductQuantityModal(false);
-      setSelectedProduct(null);
     }
+    setShowProductQuantityModal(false);
+    setSelectedProduct(null);
   };
 
   const handleGenerateRandomMenu = () => {

@@ -11,7 +11,7 @@ interface ProductQuantityModalProps {
 const ProductQuantityModal: React.FC<ProductQuantityModalProps> = ({ isOpen, onClose, onConfirm, product }) => {
   const [quantity, setQuantity] = useState('100');
 
-  if (!isOpen) return null;
+  if (!isOpen || !product) return null;
 
   const determineUnit = (product: any): string => {
     const lowerName = product.name.toLowerCase();
@@ -93,6 +93,20 @@ const ProductQuantityModal: React.FC<ProductQuantityModalProps> = ({ isOpen, onC
               />
             </div>
           </div>
+
+          {product.nutrition && (
+            <div className="text-sm text-gray-500">
+              <p>Valores nutricionales por 100{determineUnit(product)}:</p>
+              <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1">
+                <div>Calorías: {product.nutrition.calories || 0} kcal</div>
+                <div>Proteínas: {product.nutrition.proteins || 0}g</div>
+                <div>Carbohidratos: {product.nutrition.carbohydrates || 0}g</div>
+                <div>Grasas: {product.nutrition.fats || 0}g</div>
+                <div>Fibra: {product.nutrition.fiber || 0}g</div>
+                <div>Sodio: {product.nutrition.sodium || 0}mg</div>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end space-x-2 pt-4">
             <button

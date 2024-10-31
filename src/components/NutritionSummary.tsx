@@ -18,10 +18,10 @@ const NutritionSummary: React.FC<NutritionProps> = ({ nutrition }) => {
   const total = nutrition.proteins + nutrition.carbohydrates + nutrition.fats + nutrition.fiber;
 
   const pieData = [
-    { title: 'Proteínas', value: nutrition.proteins, color: '#10B981' },
-    { title: 'Carbohidratos', value: nutrition.carbohydrates, color: '#3B82F6' },
-    { title: 'Grasas', value: nutrition.fats, color: '#EF4444' },
-    { title: 'Fibra', value: nutrition.fiber, color: '#8B5CF6' },
+    { title: 'Proteínas', value: nutrition.proteins, color: '#10B981', shortLabel: 'P' },
+    { title: 'Carbohidratos', value: nutrition.carbohydrates, color: '#3B82F6', shortLabel: 'C' },
+    { title: 'Grasas', value: nutrition.fats, color: '#EF4444', shortLabel: 'G' },
+    { title: 'Fibra', value: nutrition.fiber, color: '#8B5CF6', shortLabel: 'F' },
   ].filter(item => item.value > 0);
 
   return (
@@ -36,6 +36,16 @@ const NutritionSummary: React.FC<NutritionProps> = ({ nutrition }) => {
             data={pieData}
             lineWidth={20}
             paddingAngle={2}
+            label={({ dataEntry }) => (
+              dataEntry.value > total * 0.1 ? dataEntry.shortLabel : ''
+            )}
+            labelStyle={{
+              fontSize: '4px',
+              fontFamily: 'sans-serif',
+              fill: '#fff',
+              fontWeight: 'bold',
+            }}
+            labelPosition={65}
           />
         </div>
         <span className="text-sm font-medium text-gray-600">
@@ -44,37 +54,49 @@ const NutritionSummary: React.FC<NutritionProps> = ({ nutrition }) => {
       </div>
 
       {showDetails && (
-        <div className="absolute z-10 bg-white rounded-lg shadow-lg p-4 min-w-[200px] top-full left-0 mt-2">
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="text-gray-600">Calorías:</div>
-            <div className="text-right font-medium">{nutrition.calories.toFixed(1)} kcal</div>
+        <div className="absolute z-10 bg-white rounded-lg shadow-lg p-4 min-w-[280px] top-full left-0 mt-2">
+          <div className="space-y-2">
+            <div className="flex justify-between items-center border-b pb-2">
+              <span className="text-gray-600">Calorías:</span>
+              <span className="font-medium">{nutrition.calories.toFixed(1)} kcal</span>
+            </div>
             
-            <div className="text-gray-600">Proteínas:</div>
-            <div className="text-right font-medium">{nutrition.proteins.toFixed(1)}g</div>
-            
-            <div className="text-gray-600">Carbohidratos:</div>
-            <div className="text-right font-medium">{nutrition.carbohydrates.toFixed(1)}g</div>
-            
-            <div className="text-gray-600">Grasas:</div>
-            <div className="text-right font-medium">{nutrition.fats.toFixed(1)}g</div>
-            
-            <div className="text-gray-600">Fibra:</div>
-            <div className="text-right font-medium">{nutrition.fiber.toFixed(1)}g</div>
-            
-            <div className="text-gray-600">Sodio:</div>
-            <div className="text-right font-medium">{nutrition.sodium.toFixed(1)}mg</div>
-          </div>
-
-          <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
-            {pieData.map((item) => (
-              <div key={item.title} className="flex items-center">
-                <div
-                  className="w-2 h-2 rounded-full mr-1"
-                  style={{ backgroundColor: item.color }}
-                />
-                <span>{item.title}</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#10B981' }} />
+                <span className="text-gray-600">Proteínas:</span>
               </div>
-            ))}
+              <span className="font-medium">{nutrition.proteins.toFixed(1)}g</span>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#3B82F6' }} />
+                <span className="text-gray-600">Carbohidratos:</span>
+              </div>
+              <span className="font-medium">{nutrition.carbohydrates.toFixed(1)}g</span>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#EF4444' }} />
+                <span className="text-gray-600">Grasas:</span>
+              </div>
+              <span className="font-medium">{nutrition.fats.toFixed(1)}g</span>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#8B5CF6' }} />
+                <span className="text-gray-600">Fibra:</span>
+              </div>
+              <span className="font-medium">{nutrition.fiber.toFixed(1)}g</span>
+            </div>
+
+            <div className="flex justify-between items-center border-t pt-2">
+              <span className="text-gray-600">Sodio:</span>
+              <span className="font-medium">{nutrition.sodium.toFixed(1)}mg</span>
+            </div>
           </div>
         </div>
       )}

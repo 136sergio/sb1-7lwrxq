@@ -22,7 +22,6 @@ function searchOpenFoodFacts(query: string): Promise<Product[]> {
     const script = document.createElement('script');
     const callbackName = 'openFoodFactsCallback' + Date.now();
 
-    // Crear la función callback temporal
     (window as any)[callbackName] = (data: any) => {
       document.body.removeChild(script);
       delete (window as any)[callbackName];
@@ -39,31 +38,28 @@ function searchOpenFoodFacts(query: string): Promise<Product[]> {
           image: product.image_url,
           quantity: product.quantity,
           url: `https://es.openfoodfacts.org/producto/${product.code}`,
-          nutrition: product.nutriments ? {
-            calories: product.nutriments['energy-kcal_100g'] || 0,
-            proteins: product.nutriments.proteins_100g || 0,
-            carbohydrates: product.nutriments.carbohydrates_100g || 0,
-            fats: product.nutriments.fat_100g || 0,
-            fiber: product.nutriments.fiber_100g || 0,
-            sodium: product.nutriments.sodium_100g || 0
-          } : undefined
+          nutrition: {
+            calories: parseFloat(product.nutriments['energy-kcal_100g']) || 0,
+            proteins: parseFloat(product.nutriments.proteins_100g) || 0,
+            carbohydrates: parseFloat(product.nutriments.carbohydrates_100g) || 0,
+            fats: parseFloat(product.nutriments.fat_100g) || 0,
+            fiber: parseFloat(product.nutriments.fiber_100g) || 0,
+            sodium: parseFloat(product.nutriments.sodium_100g) || 0
+          }
         }));
 
       resolve(products);
     };
 
-    // Crear y añadir el script
     script.src = `https://es.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=24&callback=${callbackName}`;
     document.body.appendChild(script);
 
-    // Manejar errores y timeout
     script.onerror = () => {
       document.body.removeChild(script);
       delete (window as any)[callbackName];
       resolve([]);
     };
 
-    // Timeout después de 5 segundos
     setTimeout(() => {
       if ((window as any)[callbackName]) {
         document.body.removeChild(script);
@@ -95,13 +91,10 @@ export function useProductSearch(searchTerm: string) {
         
         if (!mounted) return;
 
-        // Ordenar por relevancia
         const sortedProducts = results.sort((a, b) => {
-          // Primero productos con información nutricional
           if (a.nutrition && !b.nutrition) return -1;
           if (!a.nutrition && b.nutrition) return 1;
 
-          // Luego por relevancia del nombre
           const aRelevance = a.name.toLowerCase().includes(searchTerm.toLowerCase()) ? 1 : 0;
           const bRelevance = b.name.toLowerCase().includes(searchTerm.toLowerCase()) ? 1 : 0;
           if (aRelevance !== bRelevance) return bRelevance - aRelevance;
