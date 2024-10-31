@@ -2,6 +2,14 @@ export interface MealPlanItem {
   recipeName: string;
   quantity: number;
   isProduct?: boolean;
+  nutrition?: {
+    calories: number;
+    proteins: number;
+    carbohydrates: number;
+    fats: number;
+    fiber: number;
+    sodium: number;
+  };
 }
 
 export interface Recipe {

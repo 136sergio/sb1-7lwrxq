@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, X } from 'lucide-react';
+import { Plus, Edit2, X, Download, Upload } from 'lucide-react';
 import Button from '../components/Button';
 import { Link } from 'react-router-dom';
 import ConfirmationModal from '../components/ConfirmationModal';
 import BackButton from '../components/BackButton';
 import { recipeService } from '../services/database';
 import NutritionSummary from '../components/NutritionSummary';
+import * as XLSX from 'xlsx';
 
 interface Recipe {
   id: string;
@@ -26,6 +27,11 @@ interface Recipe {
   }[];
 }
 
+interface ImportSummary {
+  toAdd: { name: string; meal_types: string[]; week_days: string[]; }[];
+  duplicates: string[];
+}
+
 const RecipesPage: React.FC = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -33,6 +39,8 @@ const RecipesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>([]);
   const [selectedWeekDays, setSelectedWeekDays] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
 
   const mealTypeOptions = ['Desayuno', 'Media Mañana', 'Almuerzo', 'Comida', 'Merienda', 'Cena'];
   const weekDayOptions = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -52,6 +60,119 @@ const RecipesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      {
+        'Nombre de la Receta': '',
+        'Desayuno (X)': '',
+        'Media Mañana (X)': '',
+        'Almuerzo (X)': '',
+        'Comida (X)': '',
+        'Merienda (X)': '',
+        'Cena (X)': '',
+        'Lunes (X)': '',
+        'Martes (X)': '',
+        'Miércoles (X)': '',
+        'Jueves (X)': '',
+        'Viernes (X)': '',
+        'Sábado (X)': '',
+        'Domingo (X)': ''
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
+    XLSX.writeFile(wb, 'plantilla_recetas.xlsx');
+  };
+
+  const processImportedRecipes = (jsonData: any[]): ImportSummary => {
+    const existingNames = new Set(recipes.map(r => r.name.toLowerCase()));
+    const toAdd: { name: string; meal_types: string[]; week_days: string[]; }[] = [];
+    const duplicates: string[] = [];
+
+    jsonData.forEach(row => {
+      if (!row['Nombre de la Receta']) return;
+
+      const mealTypes = mealTypeOptions.filter(type => 
+        row[`${type} (X)`]?.toString().toLowerCase() === 'x'
+      );
+      const weekDays = weekDayOptions.filter(day => 
+        row[`${day} (X)`]?.toString().toLowerCase() === 'x'
+      );
+
+      const recipe = {
+        name: row['Nombre de la Receta'],
+        meal_types: mealTypes,
+        week_days: weekDays
+      };
+
+      if (existingNames.has(recipe.name.toLowerCase())) {
+        duplicates.push(recipe.name);
+      } else {
+        toAdd.push(recipe);
+      }
+    });
+
+    return { toAdd, duplicates };
+  };
+
+  const importRecipes = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (!validateTemplate(jsonData[0] as any)) {
+        setError('Plantilla incorrecta');
+        return;
+      }
+
+      const summary = processImportedRecipes(jsonData);
+      setImportSummary(summary);
+
+    } catch (error) {
+      console.error('Error importing recipes:', error);
+      setError('Error al importar las recetas');
+    }
+
+    // Clear the input file
+    event.target.value = '';
+  };
+
+  const confirmImport = async () => {
+    if (!importSummary) return;
+
+    try {
+      for (const recipe of importSummary.toAdd) {
+        await recipeService.create({
+          ...recipe,
+          instructions: ''
+        }, []);
+      }
+      await loadRecipes();
+      setError(null);
+      setImportSummary(null);
+    } catch (error) {
+      console.error('Error importing recipes:', error);
+      setError('Error al importar las recetas');
+    }
+  };
+
+  const validateTemplate = (firstRow: any) => {
+    const requiredColumns = [
+      'Nombre de la Receta',
+      ...mealTypeOptions.map(type => `${type} (X)`),
+      ...weekDayOptions.map(day => `${day} (X)`)
+    ];
+
+    return requiredColumns.every(column => column in firstRow);
   };
 
   const openDeleteModal = (id: string) => {
@@ -136,7 +257,35 @@ const RecipesPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <BackButton />
-      <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">Recetas</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Recetas</h1>
+        <div className="flex space-x-2">
+          <button
+            onClick={downloadTemplate}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <Download className="h-5 w-5 mr-2" />
+            Descargar Plantilla
+          </button>
+          <label className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 cursor-pointer">
+            <Upload className="h-5 w-5 mr-2" />
+            Importar Recetas
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={importRecipes}
+              className="hidden"
+            />
+          </label>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+          {error}
+        </div>
+      )}
+
       <Button icon={<Plus />} text="Añadir Receta" to="/add-recipe" />
 
       <div className="mt-6 space-y-4">
@@ -250,6 +399,17 @@ const RecipesPage: React.FC = () => {
         onClose={closeDeleteModal}
         onConfirm={handleDeleteRecipe}
         message="¿Estás seguro de que quieres eliminar esta receta?"
+      />
+
+      <ConfirmationModal
+        isOpen={!!importSummary}
+        onClose={() => setImportSummary(null)}
+        onConfirm={confirmImport}
+        message={
+          importSummary ? 
+          `Se añadirán ${importSummary.toAdd.length} recetas.\nNo se añadirán ${importSummary.duplicates.length} recetas por estar duplicadas o erróneas.\n¿Está usted seguro?` :
+          ''
+        }
       />
     </div>
   );

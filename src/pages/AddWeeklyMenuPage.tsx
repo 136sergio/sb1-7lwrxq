@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Shuffle } from 'lucide-react';
+import { Shuffle, Eye } from 'lucide-react';
 import RecipeSelectionModal from '../components/RecipeSelectionModal';
 import ProductSearchModal from '../components/ProductSearchModal';
+import ProductQuantityModal from '../components/ProductQuantityModal';
 import AddMenuItemModal from '../components/AddMenuItemModal';
 import BackButton from '../components/BackButton';
 import WeekSelector from '../components/WeekSelector';
-import { menuService } from '../services/database';
+import MenuTable from '../components/MenuTable';
+import MenuNutritionInfo from '../components/MenuNutritionInfo';
+import { menuService, recipeService } from '../services/database';
 import { useRecipes } from '../hooks/useSupabase';
-import { MealPlanItem } from '../types/menu';
 import { getMealTypes, generateRandomMenu } from '../utils/menu';
 
 const AddWeeklyMenuPage: React.FC = () => {
@@ -18,24 +20,23 @@ const AddWeeklyMenuPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [mealCount, setMealCount] = useState(4);
   const [mealTypes, setMealTypes] = useState<string[]>(['Desayuno', 'Comida', 'Merienda', 'Cena']);
-  const [mealPlan, setMealPlan] = useState<MealPlanItem[][][]>(Array(7).fill(null).map(() => Array(4).fill([])));
+  const [mealPlan, setMealPlan] = useState<any[][][]>(Array(7).fill(null).map(() => Array(4).fill([])));
   const [currentMealIndex, setCurrentMealIndex] = useState(0);
   const [currentDayIndex, setCurrentDayIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [isCustomName, setIsCustomName] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showRecipeModal, setShowRecipeModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
+  const [showProductQuantityModal, setShowProductQuantityModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [showNutritionInfo, setShowNutritionInfo] = useState(false);
 
   const weekDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-  useEffect(() => {
-    const defaultName = generateDefaultMenuName(selectedDate);
-    if (!isCustomName) {
-      setMenuName(defaultName);
-    }
-  }, [selectedDate, isCustomName]);
+  React.useEffect(() => {
+    setMenuName(generateDefaultMenuName(selectedDate));
+  }, [selectedDate]);
 
   const generateDefaultMenuName = (date: Date) => {
     const weekStart = new Date(date);
@@ -49,19 +50,6 @@ const AddWeeklyMenuPage: React.FC = () => {
     return `Menú Semana del ${formatDate(weekStart)} al ${formatDate(weekEnd)} de ${year}`;
   };
 
-  const handleDateChange = (date: Date) => {
-    setSelectedDate(date);
-    setIsCustomName(false);
-    setHasChanges(true);
-  };
-
-  const handleMenuNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newName = e.target.value;
-    setMenuName(newName);
-    setIsCustomName(true);
-    setHasChanges(true);
-  };
-
   const handleMealCountChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newMealCount = Number(e.target.value);
     setMealCount(newMealCount);
@@ -71,30 +59,81 @@ const AddWeeklyMenuPage: React.FC = () => {
     setHasChanges(true);
   };
 
-  const handleSelectRecipe = (recipe: { name: string }) => {
-    const newMealPlan = [...mealPlan];
-    if (newMealPlan[currentDayIndex][currentMealIndex].length < 4) {
-      newMealPlan[currentDayIndex][currentMealIndex] = [
-        ...newMealPlan[currentDayIndex][currentMealIndex],
-        { recipeName: recipe.name, quantity: 1 }
-      ];
-      setMealPlan(newMealPlan);
-      setHasChanges(true);
+  const handleSelectRecipe = async (recipe: any) => {
+    try {
+      const recipeDetails = await recipeService.getById(recipe.id);
+      if (recipeDetails) {
+        const nutrition = recipeDetails.recipe_ingredients?.reduce((acc, ingredient) => {
+          if (ingredient.calories === undefined) return acc;
+          const ratio = ingredient.quantity / 100;
+          return {
+            calories: acc.calories + (ingredient.calories * ratio),
+            proteins: acc.proteins + ((ingredient.proteins || 0) * ratio),
+            carbohydrates: acc.carbohydrates + ((ingredient.carbohydrates || 0) * ratio),
+            fats: acc.fats + ((ingredient.fats || 0) * ratio),
+            fiber: acc.fiber + ((ingredient.fiber || 0) * ratio),
+            sodium: acc.sodium + ((ingredient.sodium || 0) * ratio)
+          };
+        }, {
+          calories: 0,
+          proteins: 0,
+          carbohydrates: 0,
+          fats: 0,
+          fiber: 0,
+          sodium: 0
+        });
+
+        const newMealPlan = [...mealPlan];
+        if (newMealPlan[currentDayIndex][currentMealIndex].length < 4) {
+          newMealPlan[currentDayIndex][currentMealIndex] = [
+            ...newMealPlan[currentDayIndex][currentMealIndex],
+            { recipeName: recipe.name, quantity: 1, nutrition }
+          ];
+          setMealPlan(newMealPlan);
+          setHasChanges(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading recipe details:', error);
     }
     setShowRecipeModal(false);
   };
 
   const handleSelectProduct = (product: any) => {
-    const newMealPlan = [...mealPlan];
-    if (newMealPlan[currentDayIndex][currentMealIndex].length < 4) {
-      newMealPlan[currentDayIndex][currentMealIndex] = [
-        ...newMealPlan[currentDayIndex][currentMealIndex],
-        { recipeName: product.name, quantity: 1, isProduct: true }
-      ];
-      setMealPlan(newMealPlan);
-      setHasChanges(true);
-    }
+    setSelectedProduct(product);
     setShowProductModal(false);
+    setShowProductQuantityModal(true);
+  };
+
+  const handleConfirmProductQuantity = (quantity: number) => {
+    if (selectedProduct) {
+      const newMealPlan = [...mealPlan];
+      if (newMealPlan[currentDayIndex][currentMealIndex].length < 4) {
+        const ratio = quantity / 100;
+        const nutrition = selectedProduct.nutrition ? {
+          calories: selectedProduct.nutrition.calories * ratio,
+          proteins: (selectedProduct.nutrition.proteins || 0) * ratio,
+          carbohydrates: (selectedProduct.nutrition.carbohydrates || 0) * ratio,
+          fats: (selectedProduct.nutrition.fats || 0) * ratio,
+          fiber: (selectedProduct.nutrition.fiber || 0) * ratio,
+          sodium: (selectedProduct.nutrition.sodium || 0) * ratio
+        } : undefined;
+
+        newMealPlan[currentDayIndex][currentMealIndex] = [
+          ...newMealPlan[currentDayIndex][currentMealIndex],
+          {
+            recipeName: selectedProduct.name,
+            quantity,
+            isProduct: true,
+            nutrition
+          }
+        ];
+        setMealPlan(newMealPlan);
+        setHasChanges(true);
+      }
+      setShowProductQuantityModal(false);
+      setSelectedProduct(null);
+    }
   };
 
   const handleGenerateRandomMenu = () => {
@@ -150,7 +189,10 @@ const AddWeeklyMenuPage: React.FC = () => {
               type="text"
               id="menuName"
               value={menuName}
-              onChange={handleMenuNameChange}
+              onChange={(e) => {
+                setMenuName(e.target.value);
+                setHasChanges(true);
+              }}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
               required
             />
@@ -160,7 +202,10 @@ const AddWeeklyMenuPage: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Semana</label>
             <WeekSelector
               selectedDate={selectedDate}
-              onChange={handleDateChange}
+              onChange={(date) => {
+                setSelectedDate(date);
+                setHasChanges(true);
+              }}
             />
           </div>
         </div>
@@ -179,7 +224,16 @@ const AddWeeklyMenuPage: React.FC = () => {
           </select>
         </div>
 
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-between items-center">
+          <button
+            type="button"
+            onClick={() => setShowNutritionInfo(!showNutritionInfo)}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <Eye className="h-5 w-5 mr-2" />
+            {showNutritionInfo ? 'Ocultar información nutricional' : 'Ver información nutricional'}
+          </button>
+
           <button
             type="button"
             onClick={handleGenerateRandomMenu}
@@ -190,61 +244,28 @@ const AddWeeklyMenuPage: React.FC = () => {
           </button>
         </div>
 
-        <table className="w-full border-collapse border border-gray-300">
-          <thead>
-            <tr>
-              <th className="border border-gray-300 p-2"></th>
-              {weekDays.map((day) => (
-                <th key={day} className="border border-gray-300 p-2">{day}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {mealTypes.map((mealType, mealIndex) => (
-              <tr key={mealType}>
-                <td className="border border-gray-300 p-2 font-medium">
-                  {mealType}
-                </td>
-                {weekDays.map((_, dayIndex) => (
-                  <td key={`${mealType}-${dayIndex}`} className="border border-gray-300 p-2">
-                    <div className="space-y-2">
-                      {mealPlan[dayIndex][mealIndex].map((item, itemIndex) => (
-                        <div key={`${item.recipeName}-${itemIndex}`}>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm">{item.recipeName}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(dayIndex, mealIndex, itemIndex)}
-                              className="text-red-500 hover:text-red-700"
-                            >
-                              <Plus size={14} className="rotate-45" />
-                            </button>
-                          </div>
-                          {itemIndex < mealPlan[dayIndex][mealIndex].length - 1 && (
-                            <hr className="my-1 border-gray-200" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    {mealPlan[dayIndex][mealIndex].length < 4 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCurrentMealIndex(mealIndex);
-                          setCurrentDayIndex(dayIndex);
-                          setShowAddItemModal(true);
-                        }}
-                        className="w-full text-sm text-green-500 hover:text-green-700 mt-2"
-                      >
-                        <Plus size={14} className="mx-auto" />
-                      </button>
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <MenuTable
+          mealPlan={mealPlan}
+          mealTypes={mealTypes}
+          weekDays={weekDays}
+          showNutritionInfo={showNutritionInfo}
+          currentDayIndex={currentDayIndex}
+          currentMealIndex={currentMealIndex}
+          onAddItem={(dayIndex, mealIndex) => {
+            setCurrentDayIndex(dayIndex);
+            setCurrentMealIndex(mealIndex);
+            setShowAddItemModal(true);
+          }}
+          onRemoveItem={handleRemoveItem}
+        />
+
+        {showNutritionInfo && (
+          <MenuNutritionInfo
+            mealPlan={mealPlan}
+            mealTypes={mealTypes}
+            weekDays={weekDays}
+          />
+        )}
 
         <div>
           <button
@@ -252,7 +273,14 @@ const AddWeeklyMenuPage: React.FC = () => {
             disabled={isSubmitting}
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Guardando...' : 'Guardar Menú Semanal'}
+            {isSubmitting ? (
+              <div className="flex items-center">
+                <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                Guardando...
+              </div>
+            ) : (
+              'Guardar Menú Semanal'
+            )}
           </button>
         </div>
       </form>
@@ -278,6 +306,18 @@ const AddWeeklyMenuPage: React.FC = () => {
         onClose={() => setShowProductModal(false)}
         onSelectProduct={handleSelectProduct}
       />
+
+      {selectedProduct && (
+        <ProductQuantityModal
+          isOpen={showProductQuantityModal}
+          onClose={() => {
+            setShowProductQuantityModal(false);
+            setSelectedProduct(null);
+          }}
+          onConfirm={handleConfirmProductQuantity}
+          product={selectedProduct}
+        />
+      )}
     </div>
   );
 };
