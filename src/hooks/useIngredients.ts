@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { removeAccents } from '../utils/string';
+import { normalizeString } from '../utils/string';
 
 export interface Ingredient {
   id: string;
@@ -32,7 +32,7 @@ export function useIngredients(searchTerm: string) {
         setError(null);
 
         // Normalizar el término de búsqueda
-        const normalizedSearch = removeAccents(searchTerm.toLowerCase());
+        const normalizedSearch = normalizeString(searchTerm);
 
         // Realizar la búsqueda usando ILIKE para coincidencia parcial
         const { data, error: searchError } = await supabase
@@ -49,31 +49,34 @@ export function useIngredients(searchTerm: string) {
             fiber,
             sodium
           `)
-          .ilike('name', `%${searchTerm}%`)
+          .ilike('search_name', `%${normalizedSearch}%`)
           .limit(10);
 
         if (searchError) throw searchError;
 
         // Ordenar resultados por relevancia
         const sortedData = (data || []).sort((a, b) => {
-          const aNameNorm = removeAccents(a.name.toLowerCase());
-          const bNameNorm = removeAccents(b.name.toLowerCase());
+          const aNameNorm = normalizeString(a.name);
+          const bNameNorm = normalizeString(b.name);
           const searchNorm = normalizedSearch;
 
-          // Coincidencia exacta (ignorando mayúsculas/minúsculas)
+          // Coincidencia exacta (ignorando mayúsculas/minúsculas y acentos)
           if (aNameNorm === searchNorm) return -1;
           if (bNameNorm === searchNorm) return 1;
 
-          // Coincidencia al inicio
+          // Coincidencia al inicio de la palabra
           if (aNameNorm.startsWith(searchNorm) && !bNameNorm.startsWith(searchNorm)) return -1;
           if (bNameNorm.startsWith(searchNorm) && !aNameNorm.startsWith(searchNorm)) return 1;
 
-          // Coincidencia parcial
+          // Coincidencia parcial - calcular la posición más cercana al inicio
           const aIndex = aNameNorm.indexOf(searchNorm);
           const bIndex = bNameNorm.indexOf(searchNorm);
-          if (aIndex !== -1 && bIndex === -1) return -1;
-          if (bIndex !== -1 && aIndex === -1) return 1;
           if (aIndex !== bIndex) return aIndex - bIndex;
+
+          // Si las posiciones son iguales, priorizar nombres más cortos
+          if (aNameNorm.length !== bNameNorm.length) {
+            return aNameNorm.length - bNameNorm.length;
+          }
 
           // Ordenar alfabéticamente si todo lo demás es igual
           return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });

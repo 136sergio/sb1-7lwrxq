@@ -17,46 +17,61 @@ interface Product {
   url: string;
 }
 
-async function searchOpenFoodFacts(query: string): Promise<Product[]> {
-  try {
-    const response = await fetch(
-      `https://es.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=24`,
-      {
-        headers: {
-          'User-Agent': 'PlanificaTuMenu - React Web App - Version 1.0'
-        }
+function searchOpenFoodFacts(query: string): Promise<Product[]> {
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    const callbackName = 'openFoodFactsCallback' + Date.now();
+
+    // Crear la función callback temporal
+    (window as any)[callbackName] = (data: any) => {
+      document.body.removeChild(script);
+      delete (window as any)[callbackName];
+
+      const products = (data.products || [])
+        .filter((product: any) => 
+          product.product_name_es || 
+          product.product_name
+        )
+        .map((product: any) => ({
+          id: product.code,
+          name: product.product_name_es || product.product_name,
+          brand: product.brands,
+          image: product.image_url,
+          quantity: product.quantity,
+          url: `https://es.openfoodfacts.org/producto/${product.code}`,
+          nutrition: product.nutriments ? {
+            calories: product.nutriments['energy-kcal_100g'] || 0,
+            proteins: product.nutriments.proteins_100g || 0,
+            carbohydrates: product.nutriments.carbohydrates_100g || 0,
+            fats: product.nutriments.fat_100g || 0,
+            fiber: product.nutriments.fiber_100g || 0,
+            sodium: product.nutriments.sodium_100g || 0
+          } : undefined
+        }));
+
+      resolve(products);
+    };
+
+    // Crear y añadir el script
+    script.src = `https://es.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=24&callback=${callbackName}`;
+    document.body.appendChild(script);
+
+    // Manejar errores y timeout
+    script.onerror = () => {
+      document.body.removeChild(script);
+      delete (window as any)[callbackName];
+      resolve([]);
+    };
+
+    // Timeout después de 5 segundos
+    setTimeout(() => {
+      if ((window as any)[callbackName]) {
+        document.body.removeChild(script);
+        delete (window as any)[callbackName];
+        resolve([]);
       }
-    );
-
-    if (!response.ok) throw new Error('Error en la búsqueda de productos');
-
-    const data = await response.json();
-    
-    return (data.products || [])
-      .filter((product: any) => 
-        product.product_name_es || 
-        product.product_name
-      )
-      .map((product: any) => ({
-        id: product.code,
-        name: product.product_name_es || product.product_name,
-        brand: product.brands,
-        image: product.image_url,
-        quantity: product.quantity,
-        url: `https://es.openfoodfacts.org/producto/${product.code}`,
-        nutrition: product.nutriments ? {
-          calories: product.nutriments['energy-kcal_100g'] || 0,
-          proteins: product.nutriments.proteins_100g || 0,
-          carbohydrates: product.nutriments.carbohydrates_100g || 0,
-          fats: product.nutriments.fat_100g || 0,
-          fiber: product.nutriments.fiber_100g || 0,
-          sodium: product.nutriments.sodium_100g || 0
-        } : undefined
-      }));
-  } catch (error) {
-    console.error('Error searching products:', error);
-    return [];
-  }
+    }, 5000);
+  });
 }
 
 export function useProductSearch(searchTerm: string) {
@@ -65,6 +80,7 @@ export function useProductSearch(searchTerm: string) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
     const searchProducts = async () => {
       if (!searchTerm.trim()) {
         setProducts([]);
@@ -77,6 +93,8 @@ export function useProductSearch(searchTerm: string) {
 
         const results = await searchOpenFoodFacts(searchTerm);
         
+        if (!mounted) return;
+
         // Ordenar por relevancia
         const sortedProducts = results.sort((a, b) => {
           // Primero productos con información nutricional
@@ -93,15 +111,22 @@ export function useProductSearch(searchTerm: string) {
 
         setProducts(sortedProducts);
       } catch (err) {
+        if (!mounted) return;
         console.error('Error searching products:', err);
         setError('Error al buscar productos');
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-    const debounceTimeout = setTimeout(searchProducts, 500);
-    return () => clearTimeout(debounceTimeout);
+    const debounceTimeout = setTimeout(searchProducts, 300);
+    
+    return () => {
+      mounted = false;
+      clearTimeout(debounceTimeout);
+    };
   }, [searchTerm]);
 
   return { products, loading, error };

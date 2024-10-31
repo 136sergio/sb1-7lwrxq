@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Search, Info } from 'lucide-react';
+import { X, Search, Info, AlertCircle } from 'lucide-react';
 import { useProductSearch } from '../hooks/useProductSearch';
 
 interface ProductSearchModalProps {
@@ -73,7 +73,7 @@ const ProductSearchModal: React.FC<ProductSearchModalProps> = ({ isOpen, onClose
                           <p className="text-sm text-gray-500">{product.quantity}</p>
                         )}
                         
-                        {product.nutrition && (
+                        {product.nutrition ? (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -84,6 +84,13 @@ const ProductSearchModal: React.FC<ProductSearchModalProps> = ({ isOpen, onClose
                             <Info className="h-3 w-3 mr-1" />
                             Info nutricional
                           </button>
+                        ) : (
+                          <div
+                            className="mt-2 inline-flex items-center px-2 py-1 text-xs font-medium rounded-md text-red-700 bg-red-100"
+                          >
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Info nutricional no disponible
+                          </div>
                         )}
 
                         {expandedProduct === product.id && product.nutrition && (
