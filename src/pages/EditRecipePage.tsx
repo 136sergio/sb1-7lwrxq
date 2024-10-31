@@ -27,8 +27,8 @@ const EditRecipePage: React.FC = () => {
   const [instructions, setInstructions] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const mealTypeOptions = ['Desayuno', 'Media Mañana', 'Almuerzo', 'Comida', 'Merienda', 'Cena'];
   const weekDayOptions = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -44,12 +44,26 @@ const EditRecipePage: React.FC = () => {
           setName(recipe.name);
           setMealTypes(recipe.meal_types);
           setWeekDays(recipe.week_days);
-          setIngredients(recipe.ingredients);
-          setInstructions(recipe.instructions);
+          setInstructions(recipe.instructions || '');
+          
+          if (recipe.recipe_ingredients) {
+            setIngredients(recipe.recipe_ingredients.map(ingredient => ({
+              name: ingredient.name,
+              quantity: ingredient.quantity,
+              unit: ingredient.unit,
+              is_product: ingredient.is_product,
+              calories: ingredient.calories,
+              proteins: ingredient.proteins,
+              carbohydrates: ingredient.carbohydrates,
+              fats: ingredient.fats,
+              fiber: ingredient.fiber,
+              sodium: ingredient.sodium
+            })));
+          }
         }
-      } catch (error) {
-        console.error('Error loading recipe:', error);
-        setError(error instanceof Error ? error.message : 'Error al cargar la receta');
+      } catch (err) {
+        console.error('Error loading recipe:', err);
+        setError(err instanceof Error ? err.message : 'Error al cargar la receta');
       } finally {
         setLoading(false);
       }
@@ -83,7 +97,7 @@ const EditRecipePage: React.FC = () => {
     try {
       setError(null);
       setIsSubmitting(true);
-
+      
       await recipeService.update(id, {
         name,
         meal_types: mealTypes,
@@ -95,6 +109,7 @@ const EditRecipePage: React.FC = () => {
     } catch (err) {
       console.error('Error updating recipe:', err);
       setError(err instanceof Error ? err.message : 'Error al actualizar la receta');
+    } finally {
       setIsSubmitting(false);
     }
   };
