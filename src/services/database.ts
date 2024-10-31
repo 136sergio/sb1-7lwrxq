@@ -11,27 +11,20 @@ export interface Recipe {
 }
 
 export interface RecipeIngredient {
-  recipe_id: string;
-  ingredient_id: string;
+  name: string;
   quantity: number;
   unit: string;
+  is_product: boolean;
+  calories?: number;
+  proteins?: number;
+  carbohydrates?: number;
+  fats?: number;
+  fiber?: number;
+  sodium?: number;
 }
 
 export interface RecipeWithIngredients extends Recipe {
-  ingredients: {
-    ingredientId: string;
-    name: string;
-    quantity: number;
-    unit: string;
-    nutrition?: {
-      calories: number;
-      proteins: number;
-      carbohydrates: number;
-      fats: number;
-      fiber: number;
-      sodium: number;
-    };
-  }[];
+  ingredients: RecipeIngredient[];
 }
 
 export const recipeService = {
@@ -40,16 +33,17 @@ export const recipeService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
-      const { data, error } = await supabase
+      const { data: recipes, error: recipesError } = await supabase
         .from('recipes')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      return data || [];
+      if (recipesError) throw recipesError;
+      return recipes || [];
     } catch (error) {
-      throw handleSupabaseError(error);
+      console.error('Error in getAll:', error);
+      throw error;
     }
   },
 
@@ -58,7 +52,6 @@ export const recipeService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
-      // Obtener la receta
       const { data: recipe, error: recipeError } = await supabase
         .from('recipes')
         .select('*')
@@ -67,48 +60,22 @@ export const recipeService = {
         .single();
       
       if (recipeError) throw recipeError;
+      if (!recipe) return null;
 
-      // Obtener los ingredientes de la receta con sus datos nutricionales
       const { data: ingredients, error: ingredientsError } = await supabase
         .from('recipe_ingredients')
-        .select(`
-          ingredient_id,
-          quantity,
-          unit,
-          ingredients:ingredient_id (
-            name,
-            base_unit,
-            calories,
-            proteins,
-            carbohydrates,
-            fats,
-            fiber,
-            sodium
-          )
-        `)
+        .select('*')
         .eq('recipe_id', id);
 
       if (ingredientsError) throw ingredientsError;
 
       return {
         ...recipe,
-        ingredients: ingredients?.map(item => ({
-          ingredientId: item.ingredient_id,
-          name: item.ingredients.name,
-          quantity: item.quantity,
-          unit: item.unit || item.ingredients.base_unit,
-          nutrition: {
-            calories: item.ingredients.calories || 0,
-            proteins: item.ingredients.proteins || 0,
-            carbohydrates: item.ingredients.carbohydrates || 0,
-            fats: item.ingredients.fats || 0,
-            fiber: item.ingredients.fiber || 0,
-            sodium: item.ingredients.sodium || 0
-          }
-        })) || []
+        ingredients: ingredients || []
       };
     } catch (error) {
-      throw handleSupabaseError(error);
+      console.error('Error in getById:', error);
+      throw error;
     }
   },
 
@@ -117,57 +84,56 @@ export const recipeService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
-      const { data: recipeData, error: recipeError } = await supabase
-        .from('recipes')
-        .insert([{ ...recipe, user_id: user.id }])
-        .select()
-        .single();
-      
-      if (recipeError) throw recipeError;
+      console.log('Creating recipe with data:', { recipe, ingredients });
 
-      if (ingredients.length > 0) {
-        await this.addIngredients(recipeData.id, ingredients);
-      }
+      const { data, error } = await supabase
+        .rpc('create_recipe_with_ingredients', {
+          p_name: recipe.name,
+          p_meal_types: recipe.meal_types,
+          p_week_days: recipe.week_days,
+          p_instructions: recipe.instructions,
+          p_user_id: user.id,
+          p_ingredients: ingredients
+        });
 
-      return recipeData;
-    } catch (error) {
-      throw handleSupabaseError(error);
-    }
-  },
-
-  async update(id: string, recipe: Partial<Recipe>, ingredients?: RecipeIngredient[]) {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No authenticated user');
-
-      const { data, error: updateError } = await supabase
-        .from('recipes')
-        .update(recipe)
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .select()
-        .single();
-      
-      if (updateError) throw updateError;
-
-      if (ingredients) {
-        // Primero eliminar los ingredientes existentes
-        const { error: deleteError } = await supabase
-          .from('recipe_ingredients')
-          .delete()
-          .eq('recipe_id', id);
-        
-        if (deleteError) throw deleteError;
-
-        // Luego añadir los nuevos ingredientes
-        if (ingredients.length > 0) {
-          await this.addIngredients(id, ingredients);
-        }
+      if (error) {
+        console.error('Error in create_recipe_with_ingredients RPC:', error);
+        throw new Error(`Error al crear la receta: ${error.message}`);
       }
 
       return data;
     } catch (error) {
-      throw handleSupabaseError(error);
+      console.error('Error in create:', error);
+      throw error;
+    }
+  },
+
+  async update(id: string, recipe: Partial<Recipe>, ingredients: RecipeIngredient[]) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+
+      console.log('Updating recipe with data:', { id, recipe, ingredients });
+
+      const { data, error } = await supabase
+        .rpc('update_recipe_with_ingredients', {
+          p_recipe_id: id,
+          p_name: recipe.name,
+          p_meal_types: recipe.meal_types,
+          p_week_days: recipe.week_days,
+          p_instructions: recipe.instructions,
+          p_ingredients: ingredients
+        });
+
+      if (error) {
+        console.error('Error in update_recipe_with_ingredients RPC:', error);
+        throw new Error(`Error al actualizar la receta: ${error.message}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in update:', error);
+      throw error;
     }
   },
 
@@ -176,15 +142,6 @@ export const recipeService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
-      // Primero eliminar los ingredientes relacionados
-      const { error: deleteIngredientsError } = await supabase
-        .from('recipe_ingredients')
-        .delete()
-        .eq('recipe_id', id);
-      
-      if (deleteIngredientsError) throw deleteIngredientsError;
-
-      // Luego eliminar la receta
       const { error } = await supabase
         .from('recipes')
         .delete()
@@ -193,24 +150,8 @@ export const recipeService = {
       
       if (error) throw error;
     } catch (error) {
-      throw handleSupabaseError(error);
-    }
-  },
-
-  async addIngredients(recipeId: string, ingredients: RecipeIngredient[]) {
-    try {
-      const { error } = await supabase
-        .from('recipe_ingredients')
-        .insert(ingredients.map(ingredient => ({
-          recipe_id: recipeId,
-          ingredient_id: ingredient.ingredient_id,
-          quantity: ingredient.quantity,
-          unit: ingredient.unit
-        })));
-      
-      if (error) throw error;
-    } catch (error) {
-      throw handleSupabaseError(error);
+      console.error('Error in delete:', error);
+      throw error;
     }
   }
 };
@@ -234,12 +175,32 @@ export const menuService = {
     }
   },
 
+  async getById(id: string) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+
+      const { data, error } = await supabase
+        .from('weekly_menus')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      throw handleSupabaseError(error);
+    }
+  },
+
   async create(menu: Omit<WeeklyMenu, 'id' | 'user_id'>) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
-      // Check for existing menus with the same name
+      // Buscar menús existentes con el mismo nombre base
+      const baseNamePattern = new RegExp(`^${menu.name}(?: \\((\\d+)\\))?$`);
       const { data: existingMenus, error: searchError } = await supabase
         .from('weekly_menus')
         .select('name')
@@ -250,9 +211,7 @@ export const menuService = {
 
       let uniqueName = menu.name;
       if (existingMenus && existingMenus.length > 0) {
-        const baseNamePattern = new RegExp(`^${menu.name}(?: \\((\\d+)\\))?$`);
         let maxCounter = 0;
-
         existingMenus.forEach(existingMenu => {
           const match = existingMenu.name.match(baseNamePattern);
           if (match) {
@@ -284,8 +243,9 @@ export const menuService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
-      // If name is being updated, check for duplicates
+      // Si se está actualizando el nombre, verificar duplicados
       if (menu.name) {
+        const baseNamePattern = new RegExp(`^${menu.name}(?: \\((\\d+)\\))?$`);
         const { data: existingMenus, error: searchError } = await supabase
           .from('weekly_menus')
           .select('name')
@@ -297,9 +257,7 @@ export const menuService = {
 
         let uniqueName = menu.name;
         if (existingMenus && existingMenus.length > 0) {
-          const baseNamePattern = new RegExp(`^${menu.name}(?: \\((\\d+)\\))?$`);
           let maxCounter = 0;
-
           existingMenus.forEach(existingMenu => {
             const match = existingMenu.name.match(baseNamePattern);
             if (match) {
@@ -343,25 +301,6 @@ export const menuService = {
         .eq('user_id', user.id);
       
       if (error) throw error;
-    } catch (error) {
-      throw handleSupabaseError(error);
-    }
-  },
-
-  async getById(id: string) {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No authenticated user');
-
-      const { data, error } = await supabase
-        .from('weekly_menus')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .single();
-      
-      if (error) throw error;
-      return data;
     } catch (error) {
       throw handleSupabaseError(error);
     }

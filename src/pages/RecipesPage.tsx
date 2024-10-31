@@ -138,19 +138,20 @@ const RecipesPage: React.FC = () => {
     if (!pendingImport) return;
 
     try {
+      setError(null);
       for (const recipe of pendingImport.toAdd) {
         await recipeService.create({
-          ...recipe,
-          ingredients: '',
+          name: recipe.name,
+          meal_types: recipe.meal_types,
+          week_days: recipe.week_days,
           instructions: ''
-        });
+        }, []); // Sin ingredientes inicialmente
       }
       await loadRecipes();
-      setError(null);
       setPendingImport(null);
-    } catch (error) {
-      console.error('Error importing recipes:', error);
-      setError('Error al importar las recetas');
+    } catch (err) {
+      console.error('Error importing recipes:', err);
+      setError(err instanceof Error ? err.message : 'Error al importar las recetas');
     }
   };
 

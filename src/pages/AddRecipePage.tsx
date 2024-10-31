@@ -5,10 +5,16 @@ import { recipeService } from '../services/database';
 import IngredientList from '../components/IngredientList';
 
 interface Ingredient {
-  ingredientId: string;
   name: string;
   quantity: number;
   unit: string;
+  is_product: boolean;
+  calories?: number;
+  proteins?: number;
+  carbohydrates?: number;
+  fats?: number;
+  fiber?: number;
+  sodium?: number;
 }
 
 const AddRecipePage: React.FC = () => {
@@ -19,6 +25,7 @@ const AddRecipePage: React.FC = () => {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [instructions, setInstructions] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
 
   const mealTypeOptions = ['Desayuno', 'Media Mañana', 'Almuerzo', 'Comida', 'Merienda', 'Cena'];
@@ -44,27 +51,23 @@ const AddRecipePage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    if (isSubmitting) return;
 
     try {
-      const recipeIngredients = ingredients.map(ingredient => ({
-        recipe_id: '', // This will be set by the service
-        ingredient_id: ingredient.ingredientId,
-        quantity: ingredient.quantity,
-        unit: ingredient.unit
-      }));
+      setError(null);
+      setIsSubmitting(true);
 
       await recipeService.create({
         name,
         meal_types: mealTypes,
         week_days: weekDays,
         instructions
-      }, recipeIngredients);
+      }, ingredients);
 
       navigate('/recipes');
-    } catch (error) {
-      console.error('Error al crear la receta:', error);
-    } finally {
+    } catch (err) {
+      console.error('Error al crear la receta:', err);
+      setError(err instanceof Error ? err.message : 'Error al crear la receta');
       setIsSubmitting(false);
     }
   };
@@ -73,6 +76,13 @@ const AddRecipePage: React.FC = () => {
     <div className="container mx-auto px-4 py-8">
       <BackButton showConfirmation={true} hasChanges={hasChanges} />
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Añadir Receta</h1>
+
+      {error && (
+        <div className="mb-4 bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-gray-700">Nombre de la receta</label>
@@ -160,7 +170,14 @@ const AddRecipePage: React.FC = () => {
             disabled={isSubmitting}
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Guardando...' : 'Guardar Receta'}
+            {isSubmitting ? (
+              <div className="flex items-center">
+                <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                Guardando...
+              </div>
+            ) : (
+              'Guardar Receta'
+            )}
           </button>
         </div>
       </form>

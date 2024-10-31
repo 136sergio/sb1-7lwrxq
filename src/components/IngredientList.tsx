@@ -1,21 +1,20 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, X } from 'lucide-react';
+import { Plus, Edit2, X, ShoppingCart } from 'lucide-react';
 import IngredientForm from './IngredientForm';
+import ProductForm from './ProductForm';
 import NutritionInfo from './NutritionInfo';
 
 interface Ingredient {
-  ingredientId: string;
   name: string;
   quantity: number;
   unit: string;
-  nutrition?: {
-    calories: number;
-    proteins: number;
-    carbohydrates: number;
-    fats: number;
-    fiber: number;
-    sodium: number;
-  };
+  is_product: boolean;
+  calories?: number;
+  proteins?: number;
+  carbohydrates?: number;
+  fats?: number;
+  fiber?: number;
+  sodium?: number;
 }
 
 interface IngredientListProps {
@@ -24,13 +23,15 @@ interface IngredientListProps {
 }
 
 const IngredientList: React.FC<IngredientListProps> = ({ ingredients, onChange }) => {
-  const [showForm, setShowForm] = useState(false);
+  const [showIngredientForm, setShowIngredientForm] = useState(false);
+  const [showProductForm, setShowProductForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const handleAdd = (ingredient: Ingredient) => {
     const newIngredients = [...ingredients, ingredient];
     onChange(newIngredients);
-    setShowForm(false);
+    setShowIngredientForm(false);
+    setShowProductForm(false);
   };
 
   const handleEdit = (index: number, updatedIngredient: Ingredient) => {
@@ -52,20 +53,35 @@ const IngredientList: React.FC<IngredientListProps> = ({ ingredients, onChange }
     <div className="space-y-4">
       <div className="space-y-2">
         {ingredients.map((ingredient, index) => (
-          <div key={`${ingredient.ingredientId}-${index}`}>
+          <div key={index}>
             {editingIndex === index ? (
-              <IngredientForm
-                initialIngredient={ingredient}
-                onEdit={(_, updatedIngredient) => handleEdit(index, updatedIngredient)}
-                onRemove={() => handleRemove(index)}
-                isEditing
-                index={index}
-              />
+              ingredient.is_product ? (
+                <ProductForm
+                  initialProduct={ingredient}
+                  onAdd={(updatedIngredient) => handleEdit(index, updatedIngredient)}
+                  onCancel={() => setEditingIndex(null)}
+                  isEditing
+                />
+              ) : (
+                <IngredientForm
+                  initialIngredient={ingredient}
+                  onAdd={(updatedIngredient) => handleEdit(index, updatedIngredient)}
+                  onCancel={() => setEditingIndex(null)}
+                  isEditing
+                />
+              )
             ) : (
               <div className="flex items-center justify-between bg-white p-2 rounded-md shadow-sm">
-                <span className="flex-grow">
-                  {ingredient.quantity} {ingredient.unit} {ingredient.name}
-                </span>
+                <div className="flex items-center">
+                  <span>
+                    {ingredient.quantity} {ingredient.unit} {ingredient.name}
+                  </span>
+                  {ingredient.is_product && (
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      <ShoppingCart size={12} className="mr-1" />
+                    </span>
+                  )}
+                </div>
                 <div className="flex space-x-2">
                   <button
                     type="button"
@@ -88,20 +104,35 @@ const IngredientList: React.FC<IngredientListProps> = ({ ingredients, onChange }
         ))}
       </div>
 
-      {showForm ? (
-        <IngredientForm 
+      {showIngredientForm ? (
+        <IngredientForm
           onAdd={handleAdd}
-          onCancel={() => setShowForm(false)}
+          onCancel={() => setShowIngredientForm(false)}
+        />
+      ) : showProductForm ? (
+        <ProductForm
+          onAdd={handleAdd}
+          onCancel={() => setShowProductForm(false)}
         />
       ) : (
-        <button
-          type="button"
-          onClick={() => setShowForm(true)}
-          className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-        >
-          <Plus size={16} className="mr-2" />
-          Añadir Ingrediente
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setShowIngredientForm(true)}
+            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+          >
+            <Plus size={16} className="mr-2" />
+            Añadir Ingrediente
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowProductForm(true)}
+            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+          >
+            <ShoppingCart size={16} className="mr-2" />
+            Añadir Producto
+          </button>
+        </div>
       )}
 
       {ingredients.length > 0 && <NutritionInfo ingredients={ingredients} />}
