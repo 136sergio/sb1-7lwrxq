@@ -68,6 +68,22 @@ const EditWeeklyMenuPage: React.FC = () => {
     loadMenu();
   }, [id]);
 
+  const handleCloseRecipeModal = () => {
+    setShowRecipeModal(false);
+    setShowAddItemModal(true);
+  };
+
+  const handleCloseProductModal = () => {
+    setShowProductModal(false);
+    setShowAddItemModal(true);
+  };
+
+  const handleCloseProductQuantityModal = () => {
+    setShowProductQuantityModal(false);
+    setSelectedProduct(null);
+    setShowAddItemModal(true);
+  };
+
   const handleMealCountChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newMealCount = Number(e.target.value);
     setMealCount(newMealCount);
@@ -114,7 +130,6 @@ const EditWeeklyMenuPage: React.FC = () => {
     } catch (error) {
       console.error('Error loading recipe details:', error);
     }
-    setShowRecipeModal(false);
   };
 
   const handleSelectProduct = (product: any) => {
@@ -149,8 +164,6 @@ const EditWeeklyMenuPage: React.FC = () => {
         setMealPlan(newMealPlan);
         setHasChanges(true);
       }
-      setShowProductQuantityModal(false);
-      setSelectedProduct(null);
     }
   };
 
@@ -315,13 +328,19 @@ const EditWeeklyMenuPage: React.FC = () => {
       <AddMenuItemModal
         isOpen={showAddItemModal}
         onClose={() => setShowAddItemModal(false)}
-        onSelectRecipe={() => setShowRecipeModal(true)}
-        onSelectProduct={() => setShowProductModal(true)}
+        onSelectRecipe={() => {
+          setShowAddItemModal(false);
+          setShowRecipeModal(true);
+        }}
+        onSelectProduct={() => {
+          setShowAddItemModal(false);
+          setShowProductModal(true);
+        }}
       />
 
       <RecipeSelectionModal
         isOpen={showRecipeModal}
-        onClose={() => setShowRecipeModal(false)}
+        onClose={handleCloseRecipeModal}
         onSelectRecipe={handleSelectRecipe}
         mealType={mealTypes[currentMealIndex]}
         weekDay={weekDays[currentDayIndex]}
@@ -330,17 +349,14 @@ const EditWeeklyMenuPage: React.FC = () => {
 
       <ProductSearchModal
         isOpen={showProductModal}
-        onClose={() => setShowProductModal(false)}
+        onClose={handleCloseProductModal}
         onSelectProduct={handleSelectProduct}
       />
 
       {selectedProduct && (
         <ProductQuantityModal
           isOpen={showProductQuantityModal}
-          onClose={() => {
-            setShowProductQuantityModal(false);
-            setSelectedProduct(null);
-          }}
+          onClose={handleCloseProductQuantityModal}
           onConfirm={handleConfirmProductQuantity}
           product={selectedProduct}
         />

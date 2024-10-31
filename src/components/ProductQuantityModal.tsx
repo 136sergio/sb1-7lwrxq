@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Check } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 
 interface ProductQuantityModalProps {
   isOpen: boolean;
@@ -15,7 +15,7 @@ const ProductQuantityModal: React.FC<ProductQuantityModalProps> = ({ isOpen, onC
 
   const determineUnit = (product: any): string => {
     const lowerName = product.name.toLowerCase();
-    const lowerQuantity = (product.quantity || '').toLowerCase();
+    const lowerQuantity = String(product.quantity || '').toLowerCase();
     
     if (
       lowerName.includes('ml') || 
@@ -36,6 +36,7 @@ const ProductQuantityModal: React.FC<ProductQuantityModalProps> = ({ isOpen, onC
     const parsedQuantity = parseFloat(quantity);
     if (!isNaN(parsedQuantity) && parsedQuantity > 0) {
       onConfirm(parsedQuantity);
+      onClose();
     }
   };
 
@@ -44,21 +45,24 @@ const ProductQuantityModal: React.FC<ProductQuantityModalProps> = ({ isOpen, onC
       <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium text-gray-900">Cantidad del producto</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+          <button 
+            onClick={onClose} 
+            className="text-gray-400 hover:text-gray-500"
+          >
             <X size={24} />
           </button>
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-start space-x-4">
             {product.image && (
               <img 
                 src={product.image} 
                 alt={product.name}
-                className="w-16 h-16 object-contain"
+                className="w-16 h-16 object-contain flex-shrink-0"
               />
             )}
-            <div>
+            <div className="flex-1">
               <h4 className="font-medium text-gray-900">{product.name}</h4>
               {product.brand && (
                 <p className="text-sm text-gray-500">{product.brand}</p>
@@ -79,6 +83,7 @@ const ProductQuantityModal: React.FC<ProductQuantityModalProps> = ({ isOpen, onC
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
                 min="0.1"
                 step="0.1"
+                autoFocus
               />
             </div>
             <div>
@@ -94,36 +99,14 @@ const ProductQuantityModal: React.FC<ProductQuantityModalProps> = ({ isOpen, onC
             </div>
           </div>
 
-          {product.nutrition && (
-            <div className="text-sm text-gray-500">
-              <p>Valores nutricionales por 100{determineUnit(product)}:</p>
-              <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1">
-                <div>Calorías: {product.nutrition.calories || 0} kcal</div>
-                <div>Proteínas: {product.nutrition.proteins || 0}g</div>
-                <div>Carbohidratos: {product.nutrition.carbohydrates || 0}g</div>
-                <div>Grasas: {product.nutrition.fats || 0}g</div>
-                <div>Fibra: {product.nutrition.fiber || 0}g</div>
-                <div>Sodio: {product.nutrition.sodium || 0}mg</div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end space-x-2 pt-4">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={!quantity || parseFloat(quantity) <= 0}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
-            >
-              <Check className="h-4 w-4 inline-block mr-1" />
-              Confirmar
-            </button>
-          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={!quantity || parseFloat(quantity) <= 0}
+            className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Añadir producto
+          </button>
         </div>
       </div>
     </div>
